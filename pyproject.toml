@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "brightway-functional"
+name = "bw-functional"
 authors = [
   { name="Chris Mutel", email="cmutel@gmail.com" },
   { name="Marin Visscher", email="m.r.visscher@cml.leidenuniv.nl" }
@@ -31,8 +31,8 @@ classifiers = [
 requires-python = ">=3.9"
 dependencies = [
     "blinker",
-    "bw2data>=4.0.dev57",
-    "bw2io>=0.9.dev35",
+    "bw2data>=4.0.1",
+    "bw2io>=0.9.1",
     "bw_processing>=0.9.6",
     "numpy<2",
     "loguru",
@@ -47,8 +47,8 @@ tracker = "https://github.com/brightway-lca/multifunctional/issues"
 # Getting recursive dependencies to work is a pain, this
 # seems to work, at least for now
 testing = [
-    "multifunctional",
-    "bw2calc>=2.0.dev17",
+    "bw-functional",
+    "bw2calc>=2.0.1",
     "pytest",
     "pytest-cov",
     "pytest-loguru",
@@ -67,13 +67,13 @@ dev = [
 [tool.setuptools]
 license-files = ["LICENSE"]
 include-package-data = true
-packages = ["multifunctional"]
+packages = ["bw_functional"]
 
 [tool.setuptools.dynamic]
-version = {attr = "multifunctional.__version__"}
+version = {attr = "bw_functional.__version__"}
 
 [tool.pytest.ini_options]
-addopts = "--cov multifunctional --cov-report term-missing --verbose"
+addopts = "--cov bw_functional --cov-report term-missing --verbose"
 norecursedirs = [
     "dist",
     "build",
