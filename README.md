@@ -1,12 +1,12 @@
-# multifunctional
+# bw-functional
 
-[![PyPI](https://img.shields.io/pypi/v/multifunctional.svg)][pypi status]
-[![Status](https://img.shields.io/pypi/status/multifunctional.svg)][pypi status]
-[![Python Version](https://img.shields.io/pypi/pyversions/multifunctional)][pypi status]
-[![License](https://img.shields.io/pypi/l/multifunctional)][license]
+[![PyPI](https://img.shields.io/pypi/v/bw-functional.svg)][pypi status]
+[![Status](https://img.shields.io/pypi/status/bw-functional.svg)][pypi status]
+[![Python Version](https://img.shields.io/pypi/pyversions/bw-functional)][pypi status]
+[![License](https://img.shields.io/pypi/l/bw-functional)][license]
 
 [![Read the documentation at https://multifunctional.readthedocs.io/](https://img.shields.io/readthedocs/multifunctional/latest.svg?label=Read%20the%20Docs)][read the docs]
-[![Tests](https://github.com/brightway-lca/multifunctional/actions/workflows/python-test.yml/badge.svg)][tests]
+[![Tests](https://github.com/mrvisscher/bw-functional/actions/workflows/python-test.yml/badge.svg)][tests]
 [![Codecov](https://codecov.io/gh/brightway-lca/multifunctional/branch/main/graph/badge.svg)][codecov]
 
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)][pre-commit]
@@ -19,21 +19,24 @@
 [pre-commit]: https://github.com/pre-commit/pre-commit
 [black]: https://github.com/psf/black
 
-Handling multifunctional activities in the Brightway LCA software framework.
+Adding functions to Brightway processes
 
 ## Installation
 
-You can install _multifunctional_ via [pip] from [PyPI]:
+You can install _bw-functional_ via [pip] from [PyPI]:
 
 ```console
-$ pip install multifunctional
+$ pip install bw-functional
 ```
 
-It is also available on `anaconda` using `mamba` or `conda` at the `cmutel` channel:
+[//]: # (It is also available on `anaconda` using `mamba` or `conda` at the `cmutel` channel:)
 
-```console
-mamba install -c conda-forge -c cmutel multifunctional
-```
+[//]: # ()
+[//]: # (```console)
+
+[//]: # (mamba install -c conda-forge -c cmutel multifunctional)
+
+[//]: # (```)
 
 ## Usage
 
@@ -41,15 +44,15 @@ Multifunctional activities can lead to linear algebra problems which don't have 
 
 This library is designed around the following workflow:
 
-Users create and register a `multifunctional.MultifunctionalDatabase`. Registering this database must include the database metadata key `default_allocation`, which refers to an allocation strategy function present in `multifunctional.allocation_strategies`.
+Users create and register a `bw_functional.FunctionalSQLiteDatabase`. Registering this database must include the database metadata key `default_allocation`, which refers to an allocation strategy function present in `bw_functional.allocation_strategies`.
 
 ```python
-import multifunctional
-mf_db = multifunctional.MultifunctionalDatabase("emojis FTW")
+import bw_functional
+mf_db = bw_functional.FunctionalSQLiteDatabase("emojis FTW")
 mf_db.register(default_allocation="price")
 ```
 
-Multifunctional process(es) are created and written to the `MultifunctionalDatabase`. A multifunctional process is any process with multiple "functional" edges, either outputs (e.g. products) and/or input (e.g. wastes). Each functional edge must be labelled `functional=True`. This labeling can be done manually or via a classification function.
+Multifunctional process(es) are created and written to the `FunctionalSQLiteDatabase`. A multifunctional process is any process with multiple "functions", either outputs (products) and/or input (reducts).
 
 ```python
 mf_data = {
@@ -57,54 +60,43 @@ mf_data = {
         "type": "product",
         "name": "meow",
         "unit": "kg",
+        "properties": {
+            "price": 7,
+            "mass": 6,
+        },
     },
     ("emojis FTW", "🐶"): {
         "type": "product",
         "name": "woof",
         "unit": "kg",
+        "properties": {
+            "price": 12,
+            "mass": 4,
+        },
     },
     ("emojis FTW", "1"): {
         "name": "process - 1",
         "location": "somewhere",
         "exchanges": [
             {
-                "functional": True,
                 "type": "production",
                 "input": ("emojis FTW", "😼"),
                 "amount": 4,
-                "properties": {
-                    "price": 7,
-                    "mass": 6,
-                },
             },
             {
-                "functional": True,
-                "type": "technosphere",
+                "type": "production",
                 "input": ("emojis FTW", "🐶"),
                 "amount": 6,
-                "properties": {
-                    "price": 12,
-                    "mass": 4,
-                },
             },
         ],
     }
 }
 ```
-
-Allocation can be done manually before writing the data to the database; if not done manually, it will be done automatically upon calling `.write()`
-
 LCA calculations can then be done as normal. See `dev/basic_example.ipynb` for a simple example.
 
 ### Substitution
 
-You don't need to use library for substitution, that already works natively in Brightway. Just produce a product which another process also produces (i.e. has the same database name and code), and the production amount of the other process will be reduced as needed to meet the functional unit demand.
-
-We will eventually have a plan for including substitution in parallel with allocation.
-
-### Classifying functional edges
-
-There is currently no built-in functionality to determine if an edge is functional based on its attributes - instead we rely on the label `functional` being manually specified. You can write a function to iterate over datasets and label the functional edges in whatever fashion you choose.
+_WORK IN PROGRESS_
 
 ### Built-in allocation functions
 
@@ -115,59 +107,60 @@ There is currently no built-in functionality to determine if an edge is function
 * `manual_allocation`: Does allocation based on the property "manual_allocation" in each functional edge. Doesn't normalize by amount of production exchange.
 * `equal`: Splits burdens equally among all functional edges.
 
-Property-based allocation assumes that each functional edge has a `properties` dictionary, and this dictionary has the relevant key with a corresponding numeric value. For example, for `price` allocation, each functional edge needs to have `'properties' = {'price': some_number}`.
+Property-based allocation assumes that each `Function` node has a `properties` dictionary, and this dictionary has the relevant key with a corresponding numeric value. For example, for `price` allocation, each `Function` needs to have `'properties' = {'price': some_number}`.
 
 ### Custom property-based allocation functions
 
 To create new property-based allocation functions, add an entry to `allocation_strategies` using the function `property_allocation`:
 
 ```python
-import multifunctional as mf
-mf.allocation_strategies['<label in function dictionary>'] = property_allocation(property_label='<property string>')
+import bw_functional as bf
+bf.allocation_strategies['<label in function dictionary>'] = bf.property_allocation(property_label='<property string>')
 ```
 
 Additions to `allocation_strategies` are not persisted, so they need to be added each time you start a new Python interpreter or Jupyter notebook.
 
 ### Custom single-factor allocation functions
 
-To create custom allocation functions which apply a single allocation factor to all nonfunctional inputs and outputs, pass a function to `multifunctional.allocation.generic_allocation`. This function needs to accept the following input arguments:
+To create custom allocation functions which apply a single allocation factor to all nonfunctional inputs and outputs, pass a getter function to `bw_functional.allocation.generic_allocation`. This function needs to accept the following input argument:
 
-* edge_data (dict): Data on functional edge
-* node: An instance of `multifunctional.MaybeMultifunctionalProcess`
-* strategy_label: An optional string to label the allocation strategy used
+* function: An instance of `multifunctional.Function`
 
-The custom function should return a number.
+The getter should return a number.
 
-The custom function needs to be curried and added to `allocation_strategies`. You can follow this example:
+The custom getter needs to be curried and added to `allocation_strategies`. You can follow this example:
 
 ```python
-import multifunctional as mf
+import bw_functional as bf
 from functools import partial
 
-def allocation_factor(edge_data: dict, node: mf.MaybeMultifunctionalProcess) -> float:
+def allocation_factor(function: bf.Function) -> float:
    """Nonsensical allocation factor generation"""
-   if edge_data.get("unit") == "kg":
+   if function.get("unit") == "kg":
       return 1.2
-   elif "silly" in node["name"]:
+   elif "silly" in function["name"]:
       return 4.2
    else:
       return 7
 
-mf.allocation_strategies['silly'] = partial(
-   mf.generic_allocation,
-   func=allocation_factor,
-   strategy_label="something silly"
+bf.allocation_strategies['silly'] = partial(
+   bf.generic_allocation,
+   getter=allocation_factor,
 )
 ```
 
-### Other custom allocation functions
+[//]: # (### Other custom allocation functions)
 
-To have complete control over allocation, add your own function to `allocation_strategies`. This function should take an input of *either* `multifunctional.MaybeMultifunctionalProcess` or a plain data dictionary, and return a list of data dictionaries *including the original input process*. These dictionaries can follow the [normal `ProcessWithReferenceProduct` data schema](https://github.com/brightway-lca/bw_interface_schemas/blob/5fb1d40587aec2a4bb2248505550fc883a91c355/bw_interface_schemas/lci.py#L83), but the result datasets need to also include the following:
+[//]: # ()
+[//]: # (To have complete control over allocation, add your own function to `allocation_strategies`. This function should take an input of *either* `multifunctional.MaybeMultifunctionalProcess` or a plain data dictionary, and return a list of data dictionaries *including the original input process*. These dictionaries can follow the [normal `ProcessWithReferenceProduct` data schema]&#40;https://github.com/brightway-lca/bw_interface_schemas/blob/5fb1d40587aec2a4bb2248505550fc883a91c355/bw_interface_schemas/lci.py#L83&#41;, but the result datasets need to also include the following:)
 
-* `mf_parent_key`: Integer database id of the source multifunctional process
-* `type`: One of "readonly_process", "process", or "multifunctional"
+[//]: # ()
+[//]: # (* `mf_parent_key`: Integer database id of the source multifunctional process)
 
-Furthermore, the code of the allocated processes (`mf_allocated_process_code`) must be written to each functional edge (and that edge saved so this data is persisted). See the code in `multifunctional.allocation.generic_allocation` for an example.
+[//]: # (* `type`: One of "readonly_process", "process", or "multifunctional")
+
+[//]: # ()
+[//]: # (Furthermore, the code of the allocated processes &#40;`mf_allocated_process_code`&#41; must be written to each functional edge &#40;and that edge saved so this data is persisted&#41;. See the code in `multifunctional.allocation.generic_allocation` for an example.)
 
 ## Technical notes
 
@@ -182,23 +175,11 @@ node["default_allocation"] = "mass"
 node.save()
 ```
 
-### Specifying `code` values for allocated processes
-
-When allocating a multifunctional process to separate monofunctional processes, we need to generate `code` values for each monofunctional process. This can be done by specifying `desired_code` for the functional exchange.  See `dev/basic_example.ipynb` for a simple example.
-
-When writing a multifunctional process, we need to create artificial edges to allocated processes which don't exist yet. You can't therefore directly specify the `code` of such an edge.
-
-### Separate `product` nodes
-
-By default, the allocation function creates chimaera process+product nodes. However, we recommend distinguishing products and processes as best practice, and this is supported by `multifunctional`. You will need to create the `product` nodes yourself; they can be in the same multifunctional database, or in another database.
-
-To create a functional link to a `product` node in the same database, you should specify an exchange `input` to the desired product. See `dev/split_products.ipynb` for a simple example. The product can be in the mutifunctional database, but doesn't have to be.
-
 ## How does it work?
 
-Recent Brightway versions allow users to specify which graph nodes types should be used when building matrices, and which types can be ignored. We create a multifunctional process node with the type `multifunctional`, which will be ignored when creating processed datapackages. However, in our database class `MultifunctionalDatabase` we change the function which creates these processed datapackages to load the multifunctional processes, perform whatever strategy is needed to handle multifunctionality, and then use the results of those handling strategies (e.g. monofunctional processes) in the processed datapackage.
+Recent Brightway versions allow users to specify which graph nodes types should be used when building matrices, and which types can be ignored. We create a multifunctional process node with the type `multifunctional`, which will be ignored when creating processed datapackages. However, in our database class `FunctionalSQLiteDatabase` we change the function which creates these processed datapackages to load the multifunctional processes, perform whatever strategy is needed to handle multifunctionality, and then use the results of those handling strategies (e.g. monofunctional processes) in the processed datapackage.
 
-We also tell `MultifunctionalDatabase` to load a new `ReadOnlyProcessWithReferenceProduct` process class instead of the standard `Activity` class when interacting with the database. This new class is read only because the data is generated from the multifunctional process itself - if updates are needed, either that input process or the allocation function should be modified.
+We also tell `MultifunctionalDatabase` to load a new `ReadOnlyProcess` process class instead of the standard `Activity` class when interacting with the database. This new class is read only because the data is generated from the multifunctional process itself - if updates are needed, either that input process or the allocation function should be modified.
 
 ## Contributing
 
