@@ -1,7 +1,7 @@
 import bw2data as bd
 import pytest
 
-import multifunctional as mf
+import bw_functional as mf
 
 
 def test_read_only_node(basic):

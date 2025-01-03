@@ -8,7 +8,7 @@ from bw2data.backends.schema import ExchangeDataset
 from bw2data.errors import UnknownObject
 from loguru import logger
 
-from multifunctional.errors import MultipleFunctionalExchangesWithSameInput
+from bw_functional.errors import MultipleFunctionalExchangesWithSameInput
 
 
 def allocation_before_writing(data: Dict[tuple, dict], strategy_label: str) -> Dict[tuple, dict]:

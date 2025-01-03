@@ -2,7 +2,7 @@ import bw2data as bd
 import pytest
 from loguru import logger
 
-from multifunctional.utils import (
+from bw_functional.utils import (
     add_exchange_input_if_missing,
     label_multifunctional_nodes,
     product_as_process_name,

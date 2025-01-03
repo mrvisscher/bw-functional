@@ -1,6 +1,6 @@
 import bw2data as bd
 
-import multifunctional as mf
+import bw_functional as mf
 
 
 def test_basic_setup(basic):

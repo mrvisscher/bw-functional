@@ -10,7 +10,7 @@ from fixtures.name_change import DATA as NAME_CHANGE_DATA
 from fixtures.product_properties import DATA as PP_DATA
 from fixtures.products import DATA as PRODUCT_DATA
 
-from multifunctional import FunctionalSQLiteDatabase, allocation_before_writing
+from bw_functional import FunctionalSQLiteDatabase, allocation_before_writing
 
 
 @pytest.fixture

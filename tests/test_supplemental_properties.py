@@ -1,7 +1,7 @@
 import bw2data as bd
 from bw2data.tests import bw2test
 
-from multifunctional.supplemental import add_product_node_properties_to_exchange
+from bw_functional.supplemental import add_product_node_properties_to_exchange
 
 
 @bw2test

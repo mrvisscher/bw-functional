@@ -5,7 +5,7 @@ import pytest
 from bw2data import get_node, projects
 from bw2data.tests import bw2test
 
-from multifunctional import (
+from bw_functional import (
     FunctionalSQLiteDatabase,
     add_custom_property_allocation_to_project,
     allocation_strategies,
@@ -13,7 +13,7 @@ from multifunctional import (
     process_property_errors,
     list_available_properties,
 )
-from multifunctional.custom_allocation import DEFAULT_ALLOCATIONS, MessageType
+from bw_functional.custom_allocation import DEFAULT_ALLOCATIONS, MessageType
 
 
 @bw2test

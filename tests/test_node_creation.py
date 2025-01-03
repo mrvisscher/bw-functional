@@ -1,7 +1,7 @@
 import bw2data as bd
 from bw2data.tests import bw2test
 
-from multifunctional import FunctionalSQLiteDatabase
+from bw_functional import FunctionalSQLiteDatabase
 
 
 @bw2test

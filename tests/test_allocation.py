@@ -2,9 +2,9 @@ import bw2data as bd
 import pytest
 from bw2data.tests import bw2test
 
-from multifunctional import FunctionalSQLiteDatabase
-from multifunctional.allocation import generic_allocation
-from multifunctional.node_classes import Process, Function, ReadOnlyProcess
+from bw_functional import FunctionalSQLiteDatabase
+from bw_functional.allocation import generic_allocation
+from bw_functional.node_classes import Process, Function, ReadOnlyProcess
 
 
 def check_basic_allocation_results(factor_1, factor_2, database):

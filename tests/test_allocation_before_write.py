@@ -2,8 +2,8 @@ import bw2data as bd
 import pytest
 from bw2data.tests import bw2test
 
-import multifunctional as mf
-from multifunctional.node_classes import Process, Function, ReadOnlyProcess
+import bw_functional as mf
+from bw_functional.node_classes import Process, Function, ReadOnlyProcess
 
 
 @pytest.fixture

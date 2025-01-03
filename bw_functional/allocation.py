@@ -53,7 +53,7 @@ def generic_allocation(
 
         del allocated_ds["id"]
 
-        allocated_ds["name"] = f"{process["name"]} ~ {function["name"]}"
+        allocated_ds["name"] = f"{process['name']} ~ {function['name']}"
         allocated_ds["code"] = function["code"] + "-allocated"
         allocated_ds["full_process_key"] = process.key
         allocated_ds["type"] = "readonly_process"
