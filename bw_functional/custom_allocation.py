@@ -99,7 +99,7 @@ def process_property_errors(process: Process, property_label: str) -> List[Prope
         raise TypeError("Node should be the Process type")
 
     for function in process.functions():
-        properties = function["properties"]
+        properties = function.get("properties", {})
         if property_label not in properties:
             messages.append(
                 PropertyMessage(

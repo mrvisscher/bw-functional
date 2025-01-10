@@ -35,14 +35,16 @@ def generic_allocation(
     if not process.multifunctional:
         return []
 
-    total = sum([getter(function) for function in process.functions()])
+    functions = process.functions()
+    exchanges = process.exchanges()
+    total = sum([getter(function) for function in functions])
 
     if not total:
         raise ZeroDivisionError("Sum of allocation factors is zero")
 
     allocated_processes = []
 
-    for i, function in enumerate(process.functions()):
+    for i, function in enumerate(functions):
         factor = getter(function) / total
         function["allocation_factor"] = factor
         function.save()
@@ -60,7 +62,7 @@ def generic_allocation(
         allocated_ds["exchanges"] = []
 
         # iterate over all exchanges in the process
-        for exc_ds in [dict(exc) for exc in process.exchanges()]:
+        for exc_ds in [dict(exc) for exc in exchanges]:
             # skip if it's a functional exchange other than the one we're allocating now
             if exc_ds["type"] in ["production", "reduction"] and exc_ds["input"] != function.key:
                 continue

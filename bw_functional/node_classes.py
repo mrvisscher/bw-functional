@@ -1,10 +1,9 @@
-import logging
-import warnings
 from typing import Optional, Union
+from logging import getLogger
 
 from bw2data import databases, get_node, labels
 from bw2data.errors import UnknownObject, ValidityError
-from bw2data.backends.proxies import Activity, Exchanges
+from bw2data.backends.proxies import Activity, Exchanges, Exchange
 from loguru import logger
 
 from .edge_classes import ReadOnlyExchanges, MFExchanges, MFExchange
@@ -14,10 +13,20 @@ from .utils import (
     update_datasets_from_allocation_results,
 )
 
+log = getLogger(__name__)
+
 
 class MFActivity(Activity):
     _edges_class = MFExchanges
     _edge_class = MFExchange
+
+    def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
+        log.debug(f"Saving {self.__class__.__name__}: {self}")
+        super().save(signal, data_already_set, force_insert)
+
+    def delete(self, signal: bool = True):
+        log.debug(f"Deleting {self.__class__.__name__}: {self}")
+        super().delete(signal)
 
     @property
     def multifunctional(self) -> bool:
@@ -63,14 +72,26 @@ class MFActivity(Activity):
 class Process(MFActivity):
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
+        self.deduct_type()
+
+        # codes = [f"{x.get('code')}_allocated" for x in self.functions()]
+        #
+        # for code in codes:
+        #     try:
+        #         get_node(database=self["database"], code=code).delete()
+        #     except UnknownObject:
+        #         pass
+
+        super().save(signal, data_already_set, force_insert)
+
+    def deduct_type(self) -> str:
         if self.multifunctional:
             self["type"] = "multifunctional"
         elif not self.functional:
             self["type"] = "nonfunctional"
         else:
             self["type"] = "process"
-        purge_expired_linked_readonly_processes(self)
-        super().save(signal, data_already_set, force_insert)
+        return self["type"]
 
     def new_product(self, **kwargs):
         kwargs["type"] = "product"
@@ -79,7 +100,7 @@ class Process(MFActivity):
         return Function(**kwargs)
 
     def new_reduct(self, **kwargs):
-        kwargs["type"] = "reduct"
+        kwargs["type"] = "waste"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
         return Function(**kwargs)
@@ -90,11 +111,11 @@ class Process(MFActivity):
 
     @property
     def functional(self) -> bool:
-        return len(list(self.functions())) > 0
+        return len(self.production()) > 0
 
     @property
     def multifunctional(self) -> bool:
-        return len(list(self.functions())) > 1
+        return len(self.production()) > 1
 
     def allocate(self, strategy_label: Optional[str] = None) -> Union[None, NoAllocationNeeded]:
         if self.get("skip_allocation") or not self.multifunctional:
@@ -127,7 +148,46 @@ class Process(MFActivity):
 
 
 class Function(MFActivity):
-    """Can be type 'product' or 'reduct'"""
+    """Can be type 'product' or 'waste'"""
+
+    def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
+        if not self.valid():
+            raise ValidityError(
+                "This activity can't be saved for the "
+                + "following reasons\n\t* "
+                + "\n\t* ".join(self.valid(why=True)[1])
+            )
+
+        edge = self.processing_edge
+
+        if edge and edge.output != self.get("processor"):
+            print(f"Switching processor for {self}")
+            edge.delete()
+            edge = None
+
+        if not edge:
+            amount = 1.0 if self["type"] == "product" else -1.0
+            exc = Exchange(input=self.key, output=self.get("processor"), amount=amount, functional=True, type="production")
+            exc.save()
+            exc.output.save()
+
+        self.deduct_type()
+
+        super().save(signal, data_already_set, force_insert)
+
+    def deduct_type(self) -> str:
+        edge = self.processing_edge
+        if not edge:
+            self["type"] = "orphaned_product"
+        elif edge.amount >= 0:
+            self["type"] = "product"
+        elif edge.amount < 0:
+            self["type"] = "waste"
+        return self["type"]
+
+    def delete(self, signal: bool = True):
+        self.upstream(["production"]).delete()
+        super().delete(signal)
 
     @property
     def processing_edge(self) -> MFExchange | None:
@@ -179,9 +239,9 @@ class Function(MFActivity):
                 errors.append("Processor node not found")
 
         if not self.get("type"):
-            errors.append("Missing field ``type``, function most be ``product`` or ``reduct``")
-        elif self["type"] != "product" and self["type"] != "reduct":
-            errors.append("Function ``type`` most be ``product`` or ``reduct``")
+            errors.append("Missing field ``type``, function most be ``product`` or ``waste``")
+        elif self["type"] != "product" and self["type"] != "waste":
+            errors.append("Function ``type`` most be ``product`` or ``waste``")
 
         if errors:
             if why:
@@ -190,25 +250,6 @@ class Function(MFActivity):
                 return False
         else:
             return True
-
-    def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
-        super().save(signal, data_already_set, force_insert)
-
-        processor = get_node(key=self.get("processor"))
-
-        if edge := self.processing_edge:
-            if processor.key == edge.output.key:
-                return  # no new edges needed
-            print(f"Switching processor for {self}")
-            edge.delete()
-
-        edge_type = "production" if self["type"] == "product" else "reduction"
-
-        processor.new_edge(type=edge_type, input=self.key, amount=1.0, functional=True).save()
-
-    def delete(self, signal: bool = True):
-        self.upstream(["production", "reduction"]).delete(delete_function=False)
-        super().delete(signal)
 
 
 class ReadOnlyProcess(MFActivity):
@@ -233,6 +274,7 @@ class ReadOnlyProcess(MFActivity):
         super().delete(signal)
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
+        log.debug(f"Saving Read-Only Process: {self}")
         self._data["type"] = "readonly_process"
         if not self.get("full_process_key"):
             raise ValueError("Must specify `full_process_key`")

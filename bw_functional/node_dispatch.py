@@ -10,7 +10,7 @@ def functional_node_dispatcher(node_obj: Optional[ActivityDataset] = None) -> Ac
     """Dispatch the correct node class depending on node_obj attributes."""
     if node_obj and node_obj.type == "readonly_process":
         return ReadOnlyProcess(document=node_obj)
-    elif node_obj and node_obj.type in ["product", "reduct"]:
+    elif node_obj and node_obj.type in ["product", "waste"]:
         return Function(document=node_obj)
     else:
         return Process(document=node_obj)
