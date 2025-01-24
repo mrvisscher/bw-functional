@@ -1,6 +1,14 @@
+import sqlite3
+import pickle
+import itertools
+import datetime
 from typing import Optional
 
-from bw2data.backends import SQLiteBackend
+import pandas as pd
+from fsspec.implementations.zip import ZipFileSystem
+
+from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
+from bw2data.backends import SQLiteBackend, sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset
 
 from .node_dispatch import functional_node_dispatcher
@@ -53,7 +61,92 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         super().write(data, **kwargs)
 
     def process(self, csv: bool = False, allocate: bool = True) -> None:
-        if allocate:
-            for node in filter(lambda x: x.multifunctional, self):
-                node.allocate()
-        super().process(csv=csv)
+        tech_matrix, bio_matrix = self.build_matrices()
+
+        self.metadata["processed"] = datetime.datetime.now().isoformat()
+        dependents = set()
+
+        fp = str(self.dirpath_processed() / self.filename_processed())
+
+        dp = create_datapackage(
+            fs=ZipFileSystem(fp, mode="w"),
+            name=clean_datapackage_name(self.name),
+            sum_intra_duplicates=True,
+            sum_inter_duplicates=False,
+        )
+        self._add_inventory_geomapping_to_datapackage(dp)
+
+        dp.add_persistent_vector_from_iterator(
+            matrix="biosphere_matrix",
+            name=clean_datapackage_name(self.name + " biosphere matrix"),
+            dict_iterator=bio_matrix.to_dict('records'),
+        )
+
+        dp.add_persistent_vector_from_iterator(
+            matrix="technosphere_matrix",
+            name=clean_datapackage_name(self.name + " technosphere matrix"),
+            dict_iterator=tech_matrix.to_dict('records'),
+        )
+
+        dp.finalize_serialization()
+
+        self.metadata["depends"] = sorted(dependents)
+        self.metadata["dirty"] = False
+        self._metadata.flush()
+
+    def build_matrices(self):
+        nodes, exchanges = self.get_tables()
+
+        tech_matrix = pd.DataFrame(columns=["row", "col", "amount", "flip"])
+        bio_matrix = pd.DataFrame(columns=["row", "col", "amount", "flip"])
+
+        tech_matrix = pd.concat([tech_matrix, self.negative_technosphere(nodes, exchanges)])
+        tech_matrix = pd.concat([tech_matrix, self.positive_technosphere(nodes, exchanges)])
+
+        bio_matrix = pd.concat([bio_matrix, self.biosphere(nodes, exchanges)])
+
+        return tech_matrix, bio_matrix
+
+    def negative_technosphere(self, nodes, exchanges):
+        x = nodes.merge(exchanges.loc[exchanges["type"] == "technosphere"], left_on="processor", right_on="output")
+        x["amount"] = x["allocation_factor"].fillna(1) * x["amount"]
+        x["flip"] = True
+        x.rename(columns={"id": "col", "input": "row"}, inplace=True)
+        return x[["row", "col", "amount", "flip"]]
+
+    def positive_technosphere(self, nodes, exchanges):
+        x = nodes.merge(exchanges.loc[exchanges["type"] == "production"], left_on=["id", "processor"],
+                        right_on=["input", "output"])
+        x["flip"] = False
+        x.rename(columns={"id": "col", "input": "row"}, inplace=True)
+        return x[["row", "col", "amount", "flip"]]
+
+    def biosphere(self, nodes, exchanges):
+        x = nodes.merge(exchanges.loc[exchanges["type"] == "biosphere"], left_on="processor", right_on="output")
+        x["amount"] = x["allocation_factor"].fillna(1) * x["amount"]
+        x["flip"] = False
+        x.rename(columns={"id": "col", "input": "row"}, inplace=True)
+        return x[["row", "col", "amount", "flip"]]
+
+    def get_tables(self):
+        con = sqlite3.connect(sqlite3_lci_db._filepath)
+
+        id_map = pd.read_sql(f"SELECT id, database, code FROM activitydataset", con)
+        id_map["key"] = id_map.loc[:, ["database", "code"]].apply(tuple, axis=1)
+        id_map_dict = id_map.set_index("key")["id"].to_dict()
+
+        raw = pd.read_sql(f"SELECT data FROM activitydataset WHERE database = '{self.name}'", con)
+        node_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]],
+                               columns=["database", "code", "type", "processor", "allocation_factor"])
+        node_df = node_df.merge(id_map[["database", "code", "id"]], on=["database", "code"])
+        node_df["processor"] = node_df["processor"].map(id_map_dict).astype("Int64")
+        node_df = node_df[["id", "type", "processor", "allocation_factor"]]
+
+        raw = pd.read_sql(f"SELECT data FROM exchangedataset WHERE output_database = '{self.name}'", con)
+        exc_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]], columns=["input", "output", "type", "amount"])
+        exc_df["input"] = exc_df["input"].map(id_map_dict).astype("Int64")
+        exc_df["output"] = exc_df["output"].map(id_map_dict).astype("Int64")
+
+        con.close()
+
+        return node_df, exc_df

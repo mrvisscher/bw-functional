@@ -48,33 +48,33 @@ def generic_allocation(
         factor = getter(function) / total
         function["allocation_factor"] = factor
         function.save()
-
-        logger.debug(f"Using allocation factor {factor} for function {function} on process {process}")
-
-        allocated_ds = deepcopy(dict(process))
-
-        del allocated_ds["id"]
-
-        allocated_ds["name"] = f"{process['name']} ~ {function['name']}"
-        allocated_ds["code"] = function["code"] + "-allocated"
-        allocated_ds["full_process_key"] = process.key
-        allocated_ds["type"] = "readonly_process"
-        allocated_ds["exchanges"] = []
-
-        # iterate over all exchanges in the process
-        for exc_ds in [dict(exc) for exc in exchanges]:
-            # skip if it's a functional exchange other than the one we're allocating now
-            if exc_ds["type"] in ["production", "reduction"] and exc_ds["input"] != function.key:
-                continue
-            # allocate if it's not a functional exchange
-            elif exc_ds["type"] not in ["production", "reduction"]:
-                exc_ds["amount"] = exc_ds["amount"] * factor
-            # write to dataset
-            allocated_ds["exchanges"].append(exc_ds)
-
-        allocated_processes.append(allocated_ds)
-
-    return allocated_processes
+    #
+    #     logger.debug(f"Using allocation factor {factor} for function {function} on process {process}")
+    #
+    #     allocated_ds = deepcopy(dict(process))
+    #
+    #     del allocated_ds["id"]
+    #
+    #     allocated_ds["name"] = f"{process['name']} ~ {function['name']}"
+    #     allocated_ds["code"] = function["code"] + "-allocated"
+    #     allocated_ds["full_process_key"] = process.key
+    #     allocated_ds["type"] = "readonly_process"
+    #     allocated_ds["exchanges"] = []
+    #
+    #     # iterate over all exchanges in the process
+    #     for exc_ds in [dict(exc) for exc in exchanges]:
+    #         # skip if it's a functional exchange other than the one we're allocating now
+    #         if exc_ds["type"] in ["production", "reduction"] and exc_ds["input"] != function.key:
+    #             continue
+    #         # allocate if it's not a functional exchange
+    #         elif exc_ds["type"] not in ["production", "reduction"]:
+    #             exc_ds["amount"] = exc_ds["amount"] * factor
+    #         # write to dataset
+    #         allocated_ds["exchanges"].append(exc_ds)
+    #
+    #     allocated_processes.append(allocated_ds)
+    #
+    # return allocated_processes
 
 
 def get_allocation_factor_from_property(

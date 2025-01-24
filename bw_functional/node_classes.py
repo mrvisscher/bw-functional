@@ -143,8 +143,7 @@ class Process(MFActivity):
             s=strategy_label,
         )
 
-        allocated_data = allocation_strategies[strategy_label](self)
-        update_datasets_from_allocation_results(allocated_data)
+        allocation_strategies[strategy_label](self)
 
 
 class Function(MFActivity):
