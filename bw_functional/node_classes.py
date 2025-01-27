@@ -121,7 +121,7 @@ class Process(MFActivity):
         if self.get("skip_allocation") or not self.multifunctional:
             return NoAllocationNeeded()
 
-        from . import allocation_strategies
+        from . import allocation_strategies, property_allocation
 
         if strategy_label is None:
             if self.get("default_allocation"):
@@ -133,8 +133,6 @@ class Process(MFActivity):
             raise ValueError(
                 "Can't find `default_allocation` in input arguments, or process/database metadata."
             )
-        if strategy_label not in allocation_strategies:
-            raise KeyError(f"Given strategy label {strategy_label} not in `allocation_strategies`")
 
         logger.debug(
             "Allocating {p} (id: {i}) with strategy {s}",
@@ -143,7 +141,8 @@ class Process(MFActivity):
             s=strategy_label,
         )
 
-        allocation_strategies[strategy_label](self)
+        alloc_function = allocation_strategies.get(strategy_label, property_allocation(strategy_label))
+        alloc_function(self)
 
 
 class Function(MFActivity):
