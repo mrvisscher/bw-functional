@@ -28,13 +28,12 @@ from bw2data.subclass_mapping import DATABASE_BACKEND_MAPPING, NODE_PROCESS_CLAS
 
 from .allocation import allocation_strategies, generic_allocation, property_allocation
 from .custom_allocation import (
-    add_custom_property_allocation_to_project,
     database_property_errors,
     process_property_errors,
     list_available_properties,
 )
 from .database import FunctionalSQLiteDatabase
-from .node_classes import Process, Function, ReadOnlyProcess
+from .node_classes import Process, Function
 from .node_dispatch import functional_node_dispatcher
 from .utils import allocation_before_writing
 

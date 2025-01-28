@@ -32,9 +32,7 @@ class MFExchange(Exchange):
             process.save()
 
         if self["type"] == "production":
-            function = self.input
-            if isinstance(function, Function):
-                function.save()
+            process.allocate()
 
     def delete(self, signal: bool = True):
         from .node_classes import Process, Function
@@ -56,26 +54,5 @@ class MFExchange(Exchange):
             except UnknownObject:
                 log.warning("Function of production exchange not found")
                 pass
+            process.allocate()
 
-
-class ReadOnlyExchange(MFExchange):
-    def save(self):
-        raise NotImplementedError("Read-only exchange")
-
-    def delete(self):
-        raise NotImplementedError("Read-only exchange")
-
-    def _set_output(self, value):
-        raise NotImplementedError("Read-only exchange")
-
-    def _set_input(self, value):
-        raise NotImplementedError("Read-only exchange")
-
-    def __setitem__(self, key, value):
-        raise NotImplementedError("Read-only exchange")
-
-
-class ReadOnlyExchanges(MFExchanges):
-    def __iter__(self):
-        for obj in self._get_queryset():
-            yield ReadOnlyExchange(obj)

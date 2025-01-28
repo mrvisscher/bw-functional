@@ -4,9 +4,8 @@ from logging import getLogger
 from bw2data import databases, get_node, labels
 from bw2data.errors import UnknownObject, ValidityError
 from bw2data.backends.proxies import Activity, Exchanges, Exchange
-from loguru import logger
 
-from .edge_classes import ReadOnlyExchanges, MFExchanges, MFExchange
+from .edge_classes import MFExchanges, MFExchange
 from .errors import NoAllocationNeeded
 from .utils import (
     purge_expired_linked_readonly_processes,
@@ -73,15 +72,6 @@ class Process(MFActivity):
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         self.deduct_type()
-
-        # codes = [f"{x.get('code')}_allocated" for x in self.functions()]
-        #
-        # for code in codes:
-        #     try:
-        #         get_node(database=self["database"], code=code).delete()
-        #     except UnknownObject:
-        #         pass
-
         super().save(signal, data_already_set, force_insert)
 
     def deduct_type(self) -> str:
@@ -134,12 +124,7 @@ class Process(MFActivity):
                 "Can't find `default_allocation` in input arguments, or process/database metadata."
             )
 
-        logger.debug(
-            "Allocating {p} (id: {i}) with strategy {s}",
-            p=repr(self),
-            i=self.id,
-            s=strategy_label,
-        )
+        log.debug(f"Allocating {repr(self)} (id: {self.id}) with strategy {strategy_label}")
 
         alloc_function = allocation_strategies.get(strategy_label, property_allocation(strategy_label))
         alloc_function(self)
@@ -249,41 +234,3 @@ class Function(MFActivity):
         else:
             return True
 
-
-class ReadOnlyProcess(MFActivity):
-    _edges_class = ReadOnlyExchanges
-
-    def __str__(self):
-        base = super().__str__()
-        return f"Read-only allocated process: {base}"
-
-    def __setitem__(self, key, value):
-        raise NotImplementedError(
-            "This node is read only. Update the corresponding multifunctional process."
-        )
-
-    @property
-    def parent(self):
-        """Return the `MultifunctionalProcess` which generated this node object"""
-        return get_node(key=self.get("full_process_key"))
-
-    def delete(self, signal: bool = True):
-        self._edges_class = Exchanges  # makes exchanges non-readonly and ready for deletion
-        super().delete(signal)
-
-    def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
-        log.debug(f"Saving Read-Only Process: {self}")
-        self._data["type"] = "readonly_process"
-        if not self.get("full_process_key"):
-            raise ValueError("Must specify `full_process_key`")
-        super().save(signal, data_already_set, force_insert)
-
-    def copy(self, *args, **kwargs):
-        raise NotImplementedError(
-            "This node is read only. Update the corresponding multifunctional process."
-        )
-
-    def new_edge(self, **kwargs):
-        raise NotImplementedError(
-            "This node is read only. Update the corresponding multifunctional process."
-        )
