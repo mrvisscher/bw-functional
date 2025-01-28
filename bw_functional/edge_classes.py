@@ -25,6 +25,10 @@ class MFExchange(Exchange):
         from .node_classes import Process, Function
         log.debug(f"Saving {self["type"]} Exchange: {self}")
 
+        if self["type"] == "production" and self.get("formula"):
+            del self["formula"]
+            raise NotImplementedError("Parameterization not supported for functions")
+
         super().save(signal, data_already_set, force_insert)
 
         process = self.output
