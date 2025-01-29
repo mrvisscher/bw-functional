@@ -7,10 +7,6 @@ from bw2data.backends.proxies import Activity, Exchanges, Exchange
 
 from .edge_classes import MFExchanges, MFExchange
 from .errors import NoAllocationNeeded
-from .utils import (
-    purge_expired_linked_readonly_processes,
-    update_datasets_from_allocation_results,
-)
 
 log = getLogger(__name__)
 
@@ -87,13 +83,30 @@ class Process(MFActivity):
         kwargs["type"] = "product"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
+        kwargs["properties"] = self.get("default_properties", {})
         return Function(**kwargs)
 
     def new_reduct(self, **kwargs):
         kwargs["type"] = "waste"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
+        kwargs["properties"] = self.get("default_properties", {})
         return Function(**kwargs)
+
+    def new_property(self, name: str, unit: str, default_amount=1.0, normalize=False):
+        if name in self.get("properties", {}):
+            raise ValueError(f"Property already exists within {self}")
+
+        prop = {"unit": unit, "amount": default_amount, "normalize": normalize}
+
+        self["default_properties"] = self.get("default_properties", {})
+        self["default_properties"].update({name: prop})
+        self.save()
+
+        for function in self.functions():
+            function["properties"] = function.get("properties", {})
+            function["properties"].update({name: prop})
+            function.save()
 
     def functions(self):
         excs = self.exchanges(kinds=["production", "reduction"])
