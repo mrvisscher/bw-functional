@@ -67,17 +67,16 @@ class MFActivity(Activity):
 class Process(MFActivity):
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
-        self.deduct_type()
+        self["type"] = self.deduct_type()
         super().save(signal, data_already_set, force_insert)
 
     def deduct_type(self) -> str:
         if self.multifunctional:
-            self["type"] = "multifunctional"
+            return "multifunctional"
         elif not self.functional:
-            self["type"] = "nonfunctional"
+            return "nonfunctional"
         else:
-            self["type"] = "process"
-        return self["type"]
+            return "process"
 
     def new_product(self, **kwargs):
         kwargs["type"] = "product"
@@ -93,11 +92,11 @@ class Process(MFActivity):
         kwargs["properties"] = self.get("default_properties", {})
         return Function(**kwargs)
 
-    def new_property(self, name: str, unit: str, default_amount=1.0, normalize=False):
+    def new_default_property(self, name: str, unit: str, amount=1.0, normalize=False):
         if name in self.get("properties", {}):
             raise ValueError(f"Property already exists within {self}")
 
-        prop = {"unit": unit, "amount": default_amount, "normalize": normalize}
+        prop = {"unit": unit, "amount": amount, "normalize": normalize}
 
         self["default_properties"] = self.get("default_properties", {})
         self["default_properties"].update({name: prop})
@@ -167,23 +166,21 @@ class Function(MFActivity):
             exc.save()
             exc.output.save()
 
-        self.deduct_type()
+        self["type"] = self.deduct_type()
 
         super().save(signal, data_already_set, force_insert)
 
     def deduct_type(self) -> str:
         edge = self.processing_edge
         if not edge:
-            self["type"] = "orphaned_product"
+            return "orphaned_product"
         elif edge.amount >= 0:
-            self["type"] = "product"
+            return "product"
         elif edge.amount < 0:
-            self["type"] = "waste"
-        return self["type"]
+            return "waste"
 
     def delete(self, signal: bool = True):
         self.upstream(["production"]).delete()
-        super().delete(signal)
 
     @property
     def processing_edge(self) -> MFExchange | None:

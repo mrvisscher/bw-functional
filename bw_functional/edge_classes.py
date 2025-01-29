@@ -1,8 +1,7 @@
 from logging import getLogger
 
-from bw2data import projects, databases, get_node
-from bw2data.backends.proxies import Exchange, Exchanges
-from bw2data.errors import UnknownObject
+from bw2data import projects, databases
+from bw2data.backends.proxies import Exchange, Exchanges, ExchangeDataset
 
 log = getLogger(__name__)
 
@@ -25,38 +24,42 @@ class MFExchange(Exchange):
         from .node_classes import Process, Function
         log.debug(f"Saving {self["type"]} Exchange: {self}")
 
+        created = self.id is None
+
         if self["type"] == "production" and self.get("formula"):
             del self["formula"]
             raise NotImplementedError("Parameterization not supported for functions")
 
         super().save(signal, data_already_set, force_insert)
 
+        function = self.input
         process = self.output
-        if isinstance(process, Process):
-            process.save()
+
+        if not isinstance(process, Process) or not isinstance(function, Function):
+            return
 
         if self["type"] == "production":
-            process.allocate()
+            if created:
+                process.save()
+                process.allocate()
+            elif ExchangeDataset.get_by_id(self.id).data["amount"] != self["amount"]:
+                process.allocate()  # includes function.save() for function type checking
+
 
     def delete(self, signal: bool = True):
-        from .node_classes import Process, Function
+        from .node_classes import Function, Process, MFActivity
         log.debug(f"Deleting {self["type"]} Exchange: {self}")
 
         super().delete(signal)
 
+        function = self.input
         process = self.output
-        if isinstance(process, Process):
-            log.debug(f"Exchange has Process as output")
-            process.save()
+
+        if not isinstance(process, Process) or not isinstance(function, Function):
+            return
 
         if self["type"] == "production":
-            try:
-                function = self.input
-                if isinstance(function, Function):
-                    log.debug(f"Exchange has Product as input")
-                    function.delete()
-            except UnknownObject:
-                log.warning("Function of production exchange not found")
-                pass
+            MFActivity.delete(function)
+            process.save()
             process.allocate()
 
