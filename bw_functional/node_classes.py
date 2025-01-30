@@ -72,6 +72,7 @@ class Process(MFActivity):
         old = ActivityDataset.get_by_id(self.id) if not created else None
 
         self["type"] = self.deduct_type()
+        self["allocation"] = self.get("allocation", databases[self["database"]].get("default_allocation"))
 
         super().save(signal, data_already_set, force_insert)
 

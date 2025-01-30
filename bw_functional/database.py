@@ -60,6 +60,11 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         data = label_multifunctional_nodes(add_exchange_input_if_missing(data))
         super().write(data, **kwargs)
 
+    def register(self, **kwargs):
+        if "default_allocation" not in kwargs:
+            kwargs["default_allocation"] = "equal"
+        super().register(**kwargs)
+
     def process(self, csv: bool = False, allocate: bool = True) -> None:
         tech_matrix, bio_matrix = self.build_matrices()
 
