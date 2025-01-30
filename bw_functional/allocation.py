@@ -75,4 +75,5 @@ def property_allocation(property_label: str) -> Callable:
 
 allocation_strategies = {
     "equal": partial(generic_allocation, getter=lambda x: 1.0),
+    "manual": partial(generic_allocation, getter=lambda x: x.get("allocation_factor", 1)),
 }
