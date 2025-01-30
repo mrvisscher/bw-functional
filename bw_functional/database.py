@@ -56,9 +56,25 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
     backend = "functional_sqlite"
     node_class = functional_dispatcher_method
 
-    def write(self, data: dict, **kwargs) -> None:
-        data = label_multifunctional_nodes(add_exchange_input_if_missing(data))
-        super().write(data, **kwargs)
+    def relabel_data(self, data: dict, old_name: str, new_name: str) -> dict:
+        """
+        Changing relabel data to also incorporate changing `processor` on database copy
+        """
+        def relabel_exchanges(obj: dict, old_name: str, new_name: str) -> dict:
+            for e in obj.get("exchanges", []):
+                if "input" in e and e["input"][0] == old_name:
+                    e["input"] = (new_name, e["input"][1])
+                if "output" in e and e["output"][0] == old_name:
+                    e["output"] = (new_name, e["output"][1])
+
+            if obj.get("processor") and obj.get("processor")[0] == old_name:
+                obj["processor"] = (new_name, obj["processor"][1])
+
+            return obj
+
+        return dict(
+            [((new_name, code), relabel_exchanges(act, old_name, new_name)) for (db, code), act in data.items()]
+        )
 
     def register(self, **kwargs):
         if "default_allocation" not in kwargs:
