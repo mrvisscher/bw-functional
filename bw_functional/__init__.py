@@ -1,6 +1,5 @@
 __all__ = (
     "__version__",
-    "add_custom_property_allocation_to_project",
     "allocation_before_writing",
     "allocation_strategies",
     "database_property_errors",
@@ -11,7 +10,6 @@ __all__ = (
     "Function",
     "FunctionalSQLiteDatabase",
     "property_allocation",
-    "ReadOnlyProcess",
 )
 
 __version__ = "0.1"

@@ -76,7 +76,7 @@ class Process(MFActivity):
 
         super().save(signal, data_already_set, force_insert)
 
-        if old.data.get("default_allocation") != self.get("default_allocation"):
+        if not created and old.data.get("allocation") != self.get("allocation"):
             self.allocate()
 
     def deduct_type(self) -> str:
@@ -135,8 +135,8 @@ class Process(MFActivity):
         from . import allocation_strategies, property_allocation
 
         if strategy_label is None:
-            if self.get("default_allocation"):
-                strategy_label = self.get("default_allocation")
+            if self.get("allocation"):
+                strategy_label = self.get("allocation")
             else:
                 strategy_label = databases[self["database"]].get("default_allocation")
 
@@ -181,8 +181,8 @@ class Function(MFActivity):
             edge.save()
 
         if (not created and
-                old.data.get("properties", {}).get(self.processor.get("default_allocation")) !=
-                self.get("properties", {}).get(self.processor.get("default_allocation"))):
+                old.data.get("properties", {}).get(self.processor.get("allocation")) !=
+                self.get("properties", {}).get(self.processor.get("allocation"))):
             # the user has changed the allocation property
             self.processor.allocate()
 
