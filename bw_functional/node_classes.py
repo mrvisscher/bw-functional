@@ -3,7 +3,7 @@ from logging import getLogger
 
 from bw2data import databases, get_node, labels
 from bw2data.errors import UnknownObject, ValidityError
-from bw2data.backends.proxies import Activity, Exchanges, Exchange
+from bw2data.backends.proxies import Activity, Exchange, ActivityDataset
 
 from .edge_classes import MFExchanges, MFExchange
 from .errors import NoAllocationNeeded
@@ -67,8 +67,16 @@ class MFActivity(Activity):
 class Process(MFActivity):
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
+
+        created = self.id is None
+        old = ActivityDataset.get_by_id(self.id) if not created else None
+
         self["type"] = self.deduct_type()
+
         super().save(signal, data_already_set, force_insert)
+
+        if old.data.get("default_allocation") != self.get("default_allocation"):
+            self.allocate()
 
     def deduct_type(self) -> str:
         if self.multifunctional:
@@ -153,22 +161,38 @@ class Function(MFActivity):
                 + "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        edge = self.processing_edge
+        created = self.id is None
+        old = ActivityDataset.get_by_id(self.id) if not created else None
 
-        if edge and edge.output != self.get("processor"):
-            print(f"Switching processor for {self}")
-            edge.delete()
-            edge = None
-
-        if not edge:
-            amount = 1.0 if self["type"] == "product" else -1.0
-            exc = Exchange(input=self.key, output=self.get("processor"), amount=amount, functional=True, type="production")
-            exc.save()
-            exc.output.save()
-
-        self["type"] = self.deduct_type()
+        if not created:
+            # the amount of the processing edge may have changed if not newly created,
+            # so check if we are product or waste
+            self["type"] = self.deduct_type()
 
         super().save(signal, data_already_set, force_insert)
+
+        edge = self.processing_edge
+
+        if not created and edge.output != self["processor"]:
+            # the user has changed the processor key
+            log.info(f"Switching processor for {self}")
+            edge.output = self["processor"]
+            edge.save()
+
+        if (not created and
+                old.data.get("properties", {}).get(self.processor.get("default_allocation")) !=
+                self.get("properties", {}).get(self.processor.get("default_allocation"))):
+            # the user has changed the allocation property
+            self.processor.allocate()
+
+        if created and not edge:
+            # the user has not created a processing edge manually
+            amount = 1.0 if self["type"] == "product" else -1.0
+            MFExchange(input=self.key, output=self["processor"], amount=amount, type="production").save()
+
+        if created and edge and isinstance(edge.output, Process):
+            # the user has created a processing edge manually, we need to allocate now the Function has been saved
+            edge.output.allocate()
 
     def deduct_type(self) -> str:
         edge = self.processing_edge
@@ -184,14 +208,13 @@ class Function(MFActivity):
 
     @property
     def processing_edge(self) -> MFExchange | None:
-        excs = self.exchanges(kinds=["production", "reduction"], reverse=True)
-        excs = [exc for exc in excs if exc.output.get("type") != "readonly_process"]
+        excs = self.exchanges(kinds=["production"], reverse=True)
 
         if len(excs) > 1:
             raise ValidityError("Invalid function has multiple processing edges")
         if len(excs) == 0:
             return None
-        return excs[0]
+        return list(excs)[0]
 
     @property
     def processor(self) -> Process | None:

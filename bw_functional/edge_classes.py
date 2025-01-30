@@ -25,7 +25,10 @@ class MFExchange(Exchange):
         log.debug(f"Saving {self["type"]} Exchange: {self}")
 
         created = self.id is None
+        old = ExchangeDataset.get_by_id(self.id) if not created else None
 
+        # no support for parameterization at this time because we can't allocate when amounts change through parameter
+        # changes as this happens behind the scenes
         if self["type"] == "production" and self.get("formula"):
             del self["formula"]
             raise NotImplementedError("Parameterization not supported for functions")
@@ -42,9 +45,8 @@ class MFExchange(Exchange):
             if created:
                 process.save()
                 process.allocate()
-            elif ExchangeDataset.get_by_id(self.id).data["amount"] != self["amount"]:
+            elif old.data["amount"] != self["amount"]:
                 process.allocate()  # includes function.save() for function type checking
-
 
     def delete(self, signal: bool = True):
         from .node_classes import Function, Process, MFActivity
