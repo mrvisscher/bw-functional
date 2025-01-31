@@ -1,22 +1,23 @@
 import sqlite3
 import pickle
-import itertools
 import datetime
-from typing import Optional
+from logging import getLogger
+from time import time
 
 import pandas as pd
 from fsspec.implementations.zip import ZipFileSystem
 
-from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
+from bw_processing import clean_datapackage_name, create_datapackage
 from bw2data.backends import SQLiteBackend, sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset
 
 from .node_dispatch import functional_node_dispatcher
-from .utils import add_exchange_input_if_missing, label_multifunctional_nodes
+
+log = getLogger(__name__)
 
 
 def functional_dispatcher_method(
-    db: "FunctionalSQLiteDatabase", document: Optional[ActivityDataset] = None
+    db: "FunctionalSQLiteDatabase", document: ActivityDataset = None
 ):
     return functional_node_dispatcher(document)
 
@@ -150,7 +151,11 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         return x[["row", "col", "amount", "flip"]]
 
     def get_tables(self):
+        t = time()
         con = sqlite3.connect(sqlite3_lci_db._filepath)
+
+        def id_mapper(key) -> int:
+            return id_map_dict.get(key, pd.NA)
 
         id_map = pd.read_sql(f"SELECT id, database, code FROM activitydataset", con)
         id_map["key"] = id_map.loc[:, ["database", "code"]].apply(tuple, axis=1)
@@ -160,14 +165,16 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         node_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]],
                                columns=["database", "code", "type", "processor", "allocation_factor"])
         node_df = node_df.merge(id_map[["database", "code", "id"]], on=["database", "code"])
-        node_df["processor"] = node_df["processor"].map(id_map_dict).astype("Int64")
+        node_df["processor"] = node_df["processor"].map(id_mapper).astype("Int64")
         node_df = node_df[["id", "type", "processor", "allocation_factor"]]
 
         raw = pd.read_sql(f"SELECT data FROM exchangedataset WHERE output_database = '{self.name}'", con)
         exc_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]], columns=["input", "output", "type", "amount"])
-        exc_df["input"] = exc_df["input"].map(id_map_dict).astype("Int64")
-        exc_df["output"] = exc_df["output"].map(id_map_dict).astype("Int64")
+        exc_df["input"] = exc_df["input"].map(id_mapper).astype("Int64")
+        exc_df["output"] = exc_df["output"].map(id_mapper).astype("Int64")
 
         con.close()
+
+        log.debug(f"Processing: built tables from SQL in {time() - t:.2f} seconds")
 
         return node_df, exc_df
