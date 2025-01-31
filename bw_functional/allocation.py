@@ -29,7 +29,14 @@ def generic_allocation(
     if not process.multifunctional:
         return []
 
-    functions = process.functions()
+    functions = []
+    for fn in process.functions():
+        if fn.get("substitution_factor", 0) > 0 and fn["allocation_factor"] > 0:
+            fn["allocation_factor"] = 0.0
+            fn.save()
+        elif fn.get("substitution_factor", 0) <= 0:
+            functions.append(fn)
+
     total = sum([getter(function) for function in functions])
 
     if not total:

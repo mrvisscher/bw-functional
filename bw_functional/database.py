@@ -122,25 +122,74 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         tech_matrix = pd.DataFrame(columns=["row", "col", "amount", "flip"])
         bio_matrix = pd.DataFrame(columns=["row", "col", "amount", "flip"])
 
-        tech_matrix = pd.concat([tech_matrix, self.negative_technosphere(nodes, exchanges)])
-        tech_matrix = pd.concat([tech_matrix, self.positive_technosphere(nodes, exchanges)])
+        tech_matrix = pd.concat([tech_matrix, self.technosphere(nodes, exchanges)])
+        tech_matrix = pd.concat([tech_matrix, self.production(nodes, exchanges)])
+        tech_matrix = pd.concat([tech_matrix, self.substitution(nodes, exchanges)])
 
         bio_matrix = pd.concat([bio_matrix, self.biosphere(nodes, exchanges)])
 
         return tech_matrix, bio_matrix
 
-    def negative_technosphere(self, nodes, exchanges):
+    def technosphere(self, nodes, exchanges):
+        # bind technosphere flows
+
+        # join all processor exchanges to the function and allocate them based on the allocation_factor
         x = nodes.merge(exchanges.loc[exchanges["type"] == "technosphere"], left_on="processor", right_on="output")
-        x["amount"] = x["allocation_factor"].fillna(1) * x["amount"]
+        x["amount"] = x["allocation_factor"].fillna(0) * x["amount"]
         x["flip"] = True
+        x.rename(columns={"id": "col", "input": "row"}, inplace=True)
+
+        # bind substituted flows
+
+        # join all the production amounts from the substitutor (needed for nomalization)
+        y = nodes.loc[nodes["substitution_factor"] > 0].merge(
+            exchanges.loc[exchanges["type"] == "production"],
+            left_on="substitutor", right_on="input"
+        ).rename(columns={"amount": "sub_amount"})
+
+        # join all the production amounts from the function itself (needed for nomalization)
+        y = y.merge(
+            exchanges.loc[exchanges["type"] == "production"],
+            left_on="id", right_on="input"
+        ).rename(columns={"amount": "self_amount"})
+
+        # normalize the production amounts and divide it by the substitution_factor
+        y["amount"] = (y["self_amount"] / y["sub_amount"]) / y["substitution_factor"]
+        y["flip"] = True
+        y.rename(columns={"id": "col", "substitutor": "row"}, inplace=True)
+
+        return pd.concat([x[["row", "col", "amount", "flip"]], y[["row", "col", "amount", "flip"]]])
+
+    def production(self, nodes, exchanges):
+        x = nodes.merge(
+            exchanges.loc[exchanges["type"] == "production"],
+            left_on=["id", "processor"],
+            right_on=["input", "output"]
+        )
+        x["flip"] = False
         x.rename(columns={"id": "col", "input": "row"}, inplace=True)
         return x[["row", "col", "amount", "flip"]]
 
-    def positive_technosphere(self, nodes, exchanges):
-        x = nodes.merge(exchanges.loc[exchanges["type"] == "production"], left_on=["id", "processor"],
-                        right_on=["input", "output"])
+    def substitution(self, nodes, exchanges):
+        x = nodes.loc[nodes["substitution_factor"] > 0][["id", "processor"]].merge(
+            nodes.loc[
+                (nodes["substitution_factor"] <= 0) |
+                (nodes["substitution_factor"].isna())]
+            [["id", "processor", "allocation_factor"]],
+            left_on="processor",
+            right_on="processor"
+        )
+
+        x = x.merge(
+            exchanges.loc[exchanges["type"] == "production"][["input", "amount"]],
+            left_on="id_x",
+            right_on="input"
+        )
+
+        x["amount"] = x["allocation_factor"].fillna(0) * x["amount"]
+
         x["flip"] = False
-        x.rename(columns={"id": "col", "input": "row"}, inplace=True)
+        x.rename(columns={"id_y": "col", "id_x": "row"}, inplace=True)
         return x[["row", "col", "amount", "flip"]]
 
     def biosphere(self, nodes, exchanges):
@@ -155,6 +204,7 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         con = sqlite3.connect(sqlite3_lci_db._filepath)
 
         def id_mapper(key) -> int:
+            # THIS SHOULD RAISE AN ERROR IF THE KEY IS NOT FOUND!!!
             return id_map_dict.get(key, pd.NA)
 
         id_map = pd.read_sql(f"SELECT id, database, code FROM activitydataset", con)
@@ -163,10 +213,11 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
 
         raw = pd.read_sql(f"SELECT data FROM activitydataset WHERE database = '{self.name}'", con)
         node_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]],
-                               columns=["database", "code", "type", "processor", "allocation_factor"])
+                               columns=["database", "code", "type", "processor", "allocation_factor", "substitutor", "substitution_factor"])
         node_df = node_df.merge(id_map[["database", "code", "id"]], on=["database", "code"])
         node_df["processor"] = node_df["processor"].map(id_mapper).astype("Int64")
-        node_df = node_df[["id", "type", "processor", "allocation_factor"]]
+        node_df["substitutor"] = node_df["substitutor"].map(id_mapper).astype("Int64")
+        node_df = node_df[["id", "type", "processor", "allocation_factor", "substitutor", "substitution_factor"]]
 
         raw = pd.read_sql(f"SELECT data FROM exchangedataset WHERE output_database = '{self.name}'", con)
         exc_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]], columns=["input", "output", "type", "amount"])

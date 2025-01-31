@@ -186,6 +186,9 @@ class Function(MFActivity):
             # the user has changed the allocation property
             self.processor.allocate()
 
+        if not created and (old.data.get("substitution_factor", 0) > 0) != (self.get("substitution_factor", 0) > 0):
+            self.processor.allocate()
+
         if created and not edge:
             # the user has not created a processing edge manually
             amount = 1.0 if self["type"] == "product" else -1.0
@@ -231,9 +234,18 @@ class Function(MFActivity):
         self["processor"] = processor.key
         return processor
 
-    def substitute(self):
+    def substitute(self, substitutor_key: tuple | None = None, substitution_factor=1.0):
         """Can I think of a way to substitute here?"""
-        pass
+        if substitutor_key is None:
+            if self.get("substitutor"):
+                del self["substitutor"]
+            if self.get("substitution_factor"):
+                del self["substitution_factor"]
+            return
+
+        self["substitutor"] = substitutor_key
+        self["substitution_factor"] = substitution_factor
+
 
     def new_edge(self, **kwargs):
         """Impossible for a Function"""
