@@ -234,16 +234,16 @@ class Function(MFActivity):
         self["processor"] = processor.key
         return processor
 
-    def substitute(self, substitutor_key: tuple | None = None, substitution_factor=1.0):
+    def substitute(self, substitute_key: tuple | None = None, substitution_factor=1.0):
         """Can I think of a way to substitute here?"""
-        if substitutor_key is None:
-            if self.get("substitutor"):
-                del self["substitutor"]
+        if substitute_key is None:
+            if self.get("substitute"):
+                del self["substitute"]
             if self.get("substitution_factor"):
                 del self["substitution_factor"]
             return
 
-        self["substitutor"] = substitutor_key
+        self["substitute"] = substitute_key
         self["substitution_factor"] = substitution_factor
 
 

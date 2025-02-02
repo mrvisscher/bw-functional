@@ -141,10 +141,10 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
 
         # bind substituted flows
 
-        # join all the production amounts from the substitutor (needed for nomalization)
+        # join all the production amounts from the substitution (needed for nomalization)
         y = nodes.loc[nodes["substitution_factor"] > 0].merge(
             exchanges.loc[exchanges["type"] == "production"],
-            left_on="substitutor", right_on="input"
+            left_on="substitute", right_on="input"
         ).rename(columns={"amount": "sub_amount"})
 
         # join all the production amounts from the function itself (needed for nomalization)
@@ -156,7 +156,7 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         # normalize the production amounts and divide it by the substitution_factor
         y["amount"] = (y["self_amount"] / y["sub_amount"]) / y["substitution_factor"]
         y["flip"] = True
-        y.rename(columns={"id": "col", "substitutor": "row"}, inplace=True)
+        y.rename(columns={"id": "col", "substitute": "row"}, inplace=True)
 
         return pd.concat([x[["row", "col", "amount", "flip"]], y[["row", "col", "amount", "flip"]]])
 
@@ -213,11 +213,11 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
 
         raw = pd.read_sql(f"SELECT data FROM activitydataset WHERE database = '{self.name}'", con)
         node_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]],
-                               columns=["database", "code", "type", "processor", "allocation_factor", "substitutor", "substitution_factor"])
+                               columns=["database", "code", "type", "processor", "allocation_factor", "substitute", "substitution_factor"])
         node_df = node_df.merge(id_map[["database", "code", "id"]], on=["database", "code"])
         node_df["processor"] = node_df["processor"].map(id_mapper).astype("Int64")
-        node_df["substitutor"] = node_df["substitutor"].map(id_mapper).astype("Int64")
-        node_df = node_df[["id", "type", "processor", "allocation_factor", "substitutor", "substitution_factor"]]
+        node_df["substitute"] = node_df["substitute"].map(id_mapper).astype("Int64")
+        node_df = node_df[["id", "type", "processor", "allocation_factor", "substitute", "substitution_factor"]]
 
         raw = pd.read_sql(f"SELECT data FROM exchangedataset WHERE output_database = '{self.name}'", con)
         exc_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]], columns=["input", "output", "type", "amount"])
