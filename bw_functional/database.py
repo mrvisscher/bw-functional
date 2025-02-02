@@ -186,7 +186,7 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
             right_on="input"
         )
 
-        x["amount"] = x["allocation_factor"].fillna(0) * x["amount"]
+        x["amount"] = x["allocation_factor"].fillna(1) * x["amount"]
 
         x["flip"] = False
         x.rename(columns={"id_y": "col", "id_x": "row"}, inplace=True)
