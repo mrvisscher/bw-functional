@@ -22,7 +22,7 @@ class MFExchanges(Exchanges):
 class MFExchange(Exchange):
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         from .node_classes import Process, Function
-        log.debug(f"Saving {self["type"]} Exchange: {self}")
+        log.debug(f"Saving {self['type']} Exchange: {self}")
 
         created = self.id is None
         old = ExchangeDataset.get_by_id(self.id) if not created else None
@@ -50,7 +50,7 @@ class MFExchange(Exchange):
 
     def delete(self, signal: bool = True):
         from .node_classes import Function, Process, MFActivity
-        log.debug(f"Deleting {self["type"]} Exchange: {self}")
+        log.debug(f"Deleting {self['type']} Exchange: {self}")
 
         super().delete(signal)
 

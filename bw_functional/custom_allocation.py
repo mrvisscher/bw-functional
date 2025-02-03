@@ -3,12 +3,10 @@ from copy import copy
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
-from typing import List, Optional, Union
+from typing import List, Optional
 
-from blinker import signal
 from bw2data import Database, databases
 from bw2data.backends import Exchange, Node
-from bw2data.project import ProjectDataset, projects
 
 from . import allocation_strategies
 from .allocation import property_allocation
