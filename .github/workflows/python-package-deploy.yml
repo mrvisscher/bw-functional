@@ -48,7 +48,7 @@ jobs:
     - name: Install conda-build
       run: conda install -c conda-forge -y conda-build anaconda-client conda-verify
     - name: Build a Conda tarbal
-      run: conda build ./recipe/
+      run: conda build -c cmutel ./recipe/
     - name: Publish to Anaconda
       run: |
         anaconda -t ${{ secrets.CONDA_MRVISSCHER }} upload \
