@@ -11,6 +11,9 @@ jobs:
   build-n-publish:
     name: Build and publish Python 🐍 distributions 📦 to PyPI and TestPyPI
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
     permissions:
       id-token: write
     steps:
@@ -51,11 +54,9 @@ jobs:
         environment-file: .github/environments/build.yml
     - name: Build a Conda tarbal
       run: |
-        conda activate build
         conda build -c conda-forge -c cmutel ./recipe/
     - name: Publish to Anaconda
       run: |
-        conda activate build
         anaconda -t ${{ secrets.CONDA_MRVISSCHER }} upload \
         /usr/share/miniconda/envs/build/conda-bld/noarch/*.conda
 
