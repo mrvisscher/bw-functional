@@ -1,0 +1,25 @@
+package:
+  name: bw_functional
+  version: "{{ os.environ.get('VERSION', 'dev') }}"
+
+source:
+  path: ..
+
+build:
+  noarch: python
+  number: 3
+  script: "{{ PYTHON }} -m pip install . -vv"
+
+requirements:
+  host:
+    - python
+    - pip
+  build:
+    - setuptools
+  run:
+    - python >=3.10
+    - blinker
+    - bw2data >=4.0.1
+    - bw2io >=0.9.1
+    - bw_processing >=0.9.6
+    - numpy <2
