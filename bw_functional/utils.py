@@ -1,14 +1,13 @@
-from collections import Counter
 from pprint import pformat
 from typing import Dict, List
+from logging import getLogger
 
 from bw2data import get_node, labels
 from bw2data.backends import Exchange, Node
 from bw2data.backends.schema import ExchangeDataset
 from bw2data.errors import UnknownObject
-from loguru import logger
 
-from bw_functional.errors import MultipleFunctionalExchangesWithSameInput
+log = getLogger(__name__)
 
 
 def allocation_before_writing(data: Dict[tuple, dict], strategy_label: str) -> Dict[tuple, dict]:
@@ -49,12 +48,7 @@ def add_exchange_input_if_missing(data: dict) -> dict:
                 continue
             if exc.get("input"):
                 if "code" in exc and exc["code"] != exc["input"][1]:
-                    logger.critical(
-                        "Mismatch in exchange: given 'code' is '{c}' but 'input' code is '{i}' in exchange:\n{e}",
-                        c=exc["code"],
-                        i=exc["input"][1],
-                        e=pformat(exc),
-                    )
+                    log.critical(f"Mismatch in exchange: given 'code' is '{exc['code']}' but 'input' code is '{exc['input'][1]}' in exchange:\n{pformat(exc)}")
                     exc["code"] = exc["input"][1]
             else:
                 exc["input"] = key

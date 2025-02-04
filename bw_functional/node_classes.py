@@ -3,15 +3,10 @@ from logging import getLogger
 
 from bw2data import databases, get_node, labels
 from bw2data.errors import UnknownObject, ValidityError
-from bw2data.backends.proxies import Activity, Exchanges, Exchange
-from loguru import logger
+from bw2data.backends.proxies import Activity, Exchange, ActivityDataset
 
-from .edge_classes import ReadOnlyExchanges, MFExchanges, MFExchange
+from .edge_classes import MFExchanges, MFExchange
 from .errors import NoAllocationNeeded
-from .utils import (
-    purge_expired_linked_readonly_processes,
-    update_datasets_from_allocation_results,
-)
 
 log = getLogger(__name__)
 
@@ -72,38 +67,54 @@ class MFActivity(Activity):
 class Process(MFActivity):
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
-        self.deduct_type()
 
-        # codes = [f"{x.get('code')}_allocated" for x in self.functions()]
-        #
-        # for code in codes:
-        #     try:
-        #         get_node(database=self["database"], code=code).delete()
-        #     except UnknownObject:
-        #         pass
+        created = self.id is None
+        old = ActivityDataset.get_by_id(self.id) if not created else None
+
+        self["type"] = self.deduct_type()
+        self["allocation"] = self.get("allocation", databases[self["database"]].get("default_allocation"))
 
         super().save(signal, data_already_set, force_insert)
 
+        if not created and old.data.get("allocation") != self.get("allocation"):
+            self.allocate()
+
     def deduct_type(self) -> str:
         if self.multifunctional:
-            self["type"] = "multifunctional"
+            return "multifunctional"
         elif not self.functional:
-            self["type"] = "nonfunctional"
+            return "nonfunctional"
         else:
-            self["type"] = "process"
-        return self["type"]
+            return "process"
 
     def new_product(self, **kwargs):
         kwargs["type"] = "product"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
+        kwargs["properties"] = self.get("default_properties", {})
         return Function(**kwargs)
 
     def new_reduct(self, **kwargs):
         kwargs["type"] = "waste"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
+        kwargs["properties"] = self.get("default_properties", {})
         return Function(**kwargs)
+
+    def new_default_property(self, name: str, unit: str, amount=1.0, normalize=False):
+        if name in self.get("properties", {}):
+            raise ValueError(f"Property already exists within {self}")
+
+        prop = {"unit": unit, "amount": amount, "normalize": normalize}
+
+        self["default_properties"] = self.get("default_properties", {})
+        self["default_properties"].update({name: prop})
+        self.save()
+
+        for function in self.functions():
+            function["properties"] = function.get("properties", {})
+            function["properties"].update({name: prop})
+            function.save()
 
     def functions(self):
         excs = self.exchanges(kinds=["production", "reduction"])
@@ -121,11 +132,11 @@ class Process(MFActivity):
         if self.get("skip_allocation") or not self.multifunctional:
             return NoAllocationNeeded()
 
-        from . import allocation_strategies
+        from . import allocation_strategies, property_allocation
 
         if strategy_label is None:
-            if self.get("default_allocation"):
-                strategy_label = self.get("default_allocation")
+            if self.get("allocation"):
+                strategy_label = self.get("allocation")
             else:
                 strategy_label = databases[self["database"]].get("default_allocation")
 
@@ -133,18 +144,11 @@ class Process(MFActivity):
             raise ValueError(
                 "Can't find `default_allocation` in input arguments, or process/database metadata."
             )
-        if strategy_label not in allocation_strategies:
-            raise KeyError(f"Given strategy label {strategy_label} not in `allocation_strategies`")
 
-        logger.debug(
-            "Allocating {p} (id: {i}) with strategy {s}",
-            p=repr(self),
-            i=self.id,
-            s=strategy_label,
-        )
+        log.debug(f"Allocating {repr(self)} (id: {self.id}) with strategy {strategy_label}")
 
-        allocated_data = allocation_strategies[strategy_label](self)
-        update_datasets_from_allocation_results(allocated_data)
+        alloc_function = allocation_strategies.get(strategy_label, property_allocation(strategy_label))
+        alloc_function(self)
 
 
 class Function(MFActivity):
@@ -158,47 +162,63 @@ class Function(MFActivity):
                 + "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        edge = self.processing_edge
+        created = self.id is None
+        old = ActivityDataset.get_by_id(self.id) if not created else None
 
-        if edge and edge.output != self.get("processor"):
-            print(f"Switching processor for {self}")
-            edge.delete()
-            edge = None
-
-        if not edge:
-            amount = 1.0 if self["type"] == "product" else -1.0
-            exc = Exchange(input=self.key, output=self.get("processor"), amount=amount, functional=True, type="production")
-            exc.save()
-            exc.output.save()
-
-        self.deduct_type()
+        if not created:
+            # the amount of the processing edge may have changed if not newly created,
+            # so check if we are product or waste
+            self["type"] = self.deduct_type()
 
         super().save(signal, data_already_set, force_insert)
+
+        edge = self.processing_edge
+
+        if not created and edge.output != self["processor"]:
+            # the user has changed the processor key
+            log.info(f"Switching processor for {self}")
+            edge.output = self["processor"]
+            edge.save()
+
+        if (not created and
+                old.data.get("properties", {}).get(self.processor.get("allocation")) !=
+                self.get("properties", {}).get(self.processor.get("allocation"))):
+            # the user has changed the allocation property
+            self.processor.allocate()
+
+        if not created and (old.data.get("substitution_factor", 0) > 0) != (self.get("substitution_factor", 0) > 0):
+            self.processor.allocate()
+
+        if created and not edge:
+            # the user has not created a processing edge manually
+            amount = 1.0 if self["type"] == "product" else -1.0
+            MFExchange(input=self.key, output=self["processor"], amount=amount, type="production").save()
+
+        if created and edge and isinstance(edge.output, Process):
+            # the user has created a processing edge manually, we need to allocate now the Function has been saved
+            edge.output.allocate()
 
     def deduct_type(self) -> str:
         edge = self.processing_edge
         if not edge:
-            self["type"] = "orphaned_product"
+            return "orphaned_product"
         elif edge.amount >= 0:
-            self["type"] = "product"
+            return "product"
         elif edge.amount < 0:
-            self["type"] = "waste"
-        return self["type"]
+            return "waste"
 
     def delete(self, signal: bool = True):
         self.upstream(["production"]).delete()
-        super().delete(signal)
 
     @property
     def processing_edge(self) -> MFExchange | None:
-        excs = self.exchanges(kinds=["production", "reduction"], reverse=True)
-        excs = [exc for exc in excs if exc.output.get("type") != "readonly_process"]
+        excs = self.exchanges(kinds=["production"], reverse=True)
 
         if len(excs) > 1:
             raise ValidityError("Invalid function has multiple processing edges")
         if len(excs) == 0:
             return None
-        return excs[0]
+        return list(excs)[0]
 
     @property
     def processor(self) -> Process | None:
@@ -214,9 +234,18 @@ class Function(MFActivity):
         self["processor"] = processor.key
         return processor
 
-    def substitute(self):
+    def substitute(self, substitute_key: tuple | None = None, substitution_factor=1.0):
         """Can I think of a way to substitute here?"""
-        pass
+        if substitute_key is None:
+            if self.get("substitute"):
+                del self["substitute"]
+            if self.get("substitution_factor"):
+                del self["substitution_factor"]
+            return
+
+        self["substitute"] = substitute_key
+        self["substitution_factor"] = substitution_factor
+
 
     def new_edge(self, **kwargs):
         """Impossible for a Function"""
@@ -251,41 +280,3 @@ class Function(MFActivity):
         else:
             return True
 
-
-class ReadOnlyProcess(MFActivity):
-    _edges_class = ReadOnlyExchanges
-
-    def __str__(self):
-        base = super().__str__()
-        return f"Read-only allocated process: {base}"
-
-    def __setitem__(self, key, value):
-        raise NotImplementedError(
-            "This node is read only. Update the corresponding multifunctional process."
-        )
-
-    @property
-    def parent(self):
-        """Return the `MultifunctionalProcess` which generated this node object"""
-        return get_node(key=self.get("full_process_key"))
-
-    def delete(self, signal: bool = True):
-        self._edges_class = Exchanges  # makes exchanges non-readonly and ready for deletion
-        super().delete(signal)
-
-    def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
-        log.debug(f"Saving Read-Only Process: {self}")
-        self._data["type"] = "readonly_process"
-        if not self.get("full_process_key"):
-            raise ValueError("Must specify `full_process_key`")
-        super().save(signal, data_already_set, force_insert)
-
-    def copy(self, *args, **kwargs):
-        raise NotImplementedError(
-            "This node is read only. Update the corresponding multifunctional process."
-        )
-
-    def new_edge(self, **kwargs):
-        raise NotImplementedError(
-            "This node is read only. Update the corresponding multifunctional process."
-        )
