@@ -3,6 +3,7 @@ import pickle
 import datetime
 from logging import getLogger
 from time import time
+from typing import Any
 
 import pandas as pd
 from fsspec.implementations.zip import ZipFileSystem
@@ -10,6 +11,7 @@ from fsspec.implementations.zip import ZipFileSystem
 from bw_processing import clean_datapackage_name, create_datapackage
 from bw2data.backends import SQLiteBackend, sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset
+from pandas._libs.missing import NAType
 
 from .node_dispatch import functional_node_dispatcher
 
@@ -83,10 +85,9 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         super().register(**kwargs)
 
     def process(self, csv: bool = False, allocate: bool = True) -> None:
-        tech_matrix, bio_matrix = self.build_matrices()
+        tech_matrix, bio_matrix, dependents = self.build_matrices()
 
         self.metadata["processed"] = datetime.datetime.now().isoformat()
-        dependents = set()
 
         fp = str(self.dirpath_processed() / self.filename_processed())
 
@@ -112,23 +113,20 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
 
         dp.finalize_serialization()
 
-        self.metadata["depends"] = sorted(dependents)
+        self.metadata["depends"] = list(dependents)
         self.metadata["dirty"] = False
         self._metadata.flush()
 
-    def build_matrices(self):
-        nodes, exchanges = self.get_tables()
+    def build_matrices(self) -> (pd.DataFrame, pd.DataFrame, set):
+        nodes, exchanges, dependents = self.get_tables()
 
-        tech_matrix = pd.DataFrame(columns=["row", "col", "amount", "flip"])
-        bio_matrix = pd.DataFrame(columns=["row", "col", "amount", "flip"])
-
-        tech_matrix = pd.concat([tech_matrix, self.technosphere(nodes, exchanges)])
+        tech_matrix = self.technosphere(nodes, exchanges)
         tech_matrix = pd.concat([tech_matrix, self.production(nodes, exchanges)])
         tech_matrix = pd.concat([tech_matrix, self.substitution(nodes, exchanges)])
 
-        bio_matrix = pd.concat([bio_matrix, self.biosphere(nodes, exchanges)])
+        bio_matrix = self.biosphere(nodes, exchanges)
 
-        return tech_matrix, bio_matrix
+        return tech_matrix, bio_matrix, dependents
 
     def technosphere(self, nodes, exchanges):
         # bind technosphere flows
@@ -199,13 +197,17 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         x.rename(columns={"id": "col", "input": "row"}, inplace=True)
         return x[["row", "col", "amount", "flip"]]
 
-    def get_tables(self):
+    def get_tables(self) -> (pd.DataFrame, pd.DataFrame, set):
         t = time()
         con = sqlite3.connect(sqlite3_lci_db._filepath)
 
-        def id_mapper(key) -> int:
-            # THIS SHOULD RAISE AN ERROR IF THE KEY IS NOT FOUND!!!
-            return id_map_dict.get(key, pd.NA)
+        def id_mapper(key) -> NAType | int:
+            if not isinstance(key, tuple):
+                return pd.NA
+            try:
+                return id_map_dict[key]
+            except KeyError:
+                raise KeyError(f"Node key {key} not found.")
 
         id_map = pd.read_sql(f"SELECT id, database, code FROM activitydataset", con)
         id_map["key"] = id_map.loc[:, ["database", "code"]].apply(tuple, axis=1)
@@ -219,13 +221,17 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         node_df["substitute"] = node_df["substitute"].map(id_mapper).astype("Int64")
         node_df = node_df[["id", "type", "processor", "allocation_factor", "substitute", "substitution_factor"]]
 
-        raw = pd.read_sql(f"SELECT data FROM exchangedataset WHERE output_database = '{self.name}'", con)
+        raw = pd.read_sql(f"SELECT data, input_database FROM exchangedataset WHERE output_database = '{self.name}'", con)
         exc_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]], columns=["input", "output", "type", "amount"])
         exc_df["input"] = exc_df["input"].map(id_mapper).astype("Int64")
         exc_df["output"] = exc_df["output"].map(id_mapper).astype("Int64")
+
+        dependents = set(raw["input_database"].unique())
+        if self.name in dependents:
+            dependents.remove(self.name)
 
         con.close()
 
         log.debug(f"Processing: built tables from SQL in {time() - t:.2f} seconds")
 
-        return node_df, exc_df
+        return node_df, exc_df, dependents
