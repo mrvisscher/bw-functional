@@ -133,7 +133,7 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
 
         # join all processor exchanges to the function and allocate them based on the allocation_factor
         x = nodes.merge(exchanges.loc[exchanges["type"] == "technosphere"], left_on="processor", right_on="output")
-        x["amount"] = x["allocation_factor"].fillna(0) * x["amount"]
+        x["amount"] = x["allocation_factor"].fillna(1) * x["amount"]
         x["flip"] = True
         x.rename(columns={"id": "col", "input": "row"}, inplace=True)
 
