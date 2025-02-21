@@ -5,8 +5,11 @@ from logging import getLogger
 from time import time
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from fsspec.implementations.zip import ZipFileSystem
+
+import stats_arrays as sa
 
 from bw_processing import clean_datapackage_name, create_datapackage
 from bw2data.backends import SQLiteBackend, sqlite3_lci_db
@@ -17,42 +20,16 @@ from .node_dispatch import functional_node_dispatcher
 
 log = getLogger(__name__)
 
+UNCERTAINTY_FIELDS = ["uncertainty_type", "loc", "scale", "shape", "minimum", "maximum"]
 
 def functional_dispatcher_method(
-    db: "FunctionalSQLiteDatabase", document: ActivityDataset = None
+        db: "FunctionalSQLiteDatabase", document: ActivityDataset = None
 ):
     return functional_node_dispatcher(document)
 
 
 class FunctionalSQLiteDatabase(SQLiteBackend):
-    """A database which includes multifunctional processes (i.e. processes which have more than one
-    functional input and/or output edge). Such multifunctional processes normally break square
-    matrix construction, so need to be resolved in some way.
-
-    We support three options:
-
-    * Mark the process as `"skip_allocation"=True`. You have manually constructed the database so
-        that is produces a valid technosphere matrix, by e.g. having two multifunctional processes
-        with the same two functional edge products.
-    * Using substitution, so that a functional edge corresponds to the same functional edge in
-        another process, e.g. combined heat and power produces two functional products, but the
-        heat product is also produced by another process, so the amount of that other process would
-        be decreased.
-    * Using allocation, and splitting a multifunctional process in multiple read-only single output
-        unit processes. The strategy used for allocation can be changed dynamically to investigate
-        the impact of different allocation approaches.
-
-    This class uses custom `Node` classes for multifunctional processes and read-only single-output
-    unit processes.
-
-    Stores default allocation strategies per database in the `Database` metadata dictionary:
-
-    * `default_allocation`: str. Reference to function in `multifunctional.allocation_strategies`.
-
-    Each database has one default allocation, but individual processes can also have specific
-    default allocation strategies in `MultifunctionalProcess['default_allocation']`.
-
-    Allocation strategies need to reference a process `property`. See the README.
+    """
 
     """
 
@@ -63,6 +40,7 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         """
         Changing relabel data to also incorporate changing `processor` on database copy
         """
+
         def relabel_exchanges(obj: dict, old_name: str, new_name: str) -> dict:
             for e in obj.get("exchanges", []):
                 if "input" in e and e["input"][0] == old_name:
@@ -85,7 +63,11 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         super().register(**kwargs)
 
     def process(self, csv: bool = False, allocate: bool = True) -> None:
-        tech_matrix, bio_matrix, dependents = self.build_matrices()
+        nodes, exchanges, dependents = self.get_tables()
+        exchanges = Mutate.set_default_uncertainty_values(exchanges)
+
+        tech_matrix = Build.technosphere(nodes, exchanges)
+        bio_matrix = Build.biosphere(nodes, exchanges)
 
         self.metadata["processed"] = datetime.datetime.now().isoformat()
 
@@ -117,86 +99,6 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         self.metadata["dirty"] = False
         self._metadata.flush()
 
-    def build_matrices(self) -> (pd.DataFrame, pd.DataFrame, set):
-        nodes, exchanges, dependents = self.get_tables()
-
-        tech_matrix = self.technosphere(nodes, exchanges)
-        tech_matrix = pd.concat([tech_matrix, self.production(nodes, exchanges)])
-        tech_matrix = pd.concat([tech_matrix, self.substitution(nodes, exchanges)])
-
-        bio_matrix = self.biosphere(nodes, exchanges)
-
-        return tech_matrix, bio_matrix, dependents
-
-    def technosphere(self, nodes, exchanges):
-        # bind technosphere flows
-
-        # join all processor exchanges to the function and allocate them based on the allocation_factor
-        x = nodes.merge(exchanges.loc[exchanges["type"] == "technosphere"], left_on="processor", right_on="output")
-        x["amount"] = x["allocation_factor"].fillna(1) * x["amount"]
-        x["flip"] = True
-        x.rename(columns={"id": "col", "input": "row"}, inplace=True)
-
-        # bind substituted flows
-
-        # join all the production amounts from the substitution (needed for nomalization)
-        y = nodes.loc[nodes["substitution_factor"] > 0].merge(
-            exchanges.loc[exchanges["type"] == "production"],
-            left_on="substitute", right_on="input"
-        ).rename(columns={"amount": "sub_amount"})
-
-        # join all the production amounts from the function itself (needed for nomalization)
-        y = y.merge(
-            exchanges.loc[exchanges["type"] == "production"],
-            left_on="id", right_on="input"
-        ).rename(columns={"amount": "self_amount"})
-
-        # normalize the production amounts and divide it by the substitution_factor
-        y["amount"] = (y["self_amount"] / y["sub_amount"]) / y["substitution_factor"]
-        y["flip"] = True
-        y.rename(columns={"id": "col", "substitute": "row"}, inplace=True)
-
-        return pd.concat([x[["row", "col", "amount", "flip"]], y[["row", "col", "amount", "flip"]]])
-
-    def production(self, nodes, exchanges):
-        x = nodes.merge(
-            exchanges.loc[exchanges["type"] == "production"],
-            left_on=["id", "processor"],
-            right_on=["input", "output"]
-        )
-        x["flip"] = False
-        x.rename(columns={"id": "col", "input": "row"}, inplace=True)
-        return x[["row", "col", "amount", "flip"]]
-
-    def substitution(self, nodes, exchanges):
-        x = nodes.loc[nodes["substitution_factor"] > 0][["id", "processor"]].merge(
-            nodes.loc[
-                (nodes["substitution_factor"] <= 0) |
-                (nodes["substitution_factor"].isna())]
-            [["id", "processor", "allocation_factor"]],
-            left_on="processor",
-            right_on="processor"
-        )
-
-        x = x.merge(
-            exchanges.loc[exchanges["type"] == "production"][["input", "amount"]],
-            left_on="id_x",
-            right_on="input"
-        )
-
-        x["amount"] = x["allocation_factor"].fillna(1) * x["amount"]
-
-        x["flip"] = False
-        x.rename(columns={"id_y": "col", "id_x": "row"}, inplace=True)
-        return x[["row", "col", "amount", "flip"]]
-
-    def biosphere(self, nodes, exchanges):
-        x = nodes.merge(exchanges.loc[exchanges["type"] == "biosphere"], left_on="processor", right_on="output")
-        x["amount"] = x["allocation_factor"].fillna(1) * x["amount"]
-        x["flip"] = False
-        x.rename(columns={"id": "col", "input": "row"}, inplace=True)
-        return x[["row", "col", "amount", "flip"]]
-
     def get_tables(self) -> (pd.DataFrame, pd.DataFrame, set):
         t = time()
         con = sqlite3.connect(sqlite3_lci_db._filepath)
@@ -215,14 +117,22 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
 
         raw = pd.read_sql(f"SELECT data FROM activitydataset WHERE database = '{self.name}'", con)
         node_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]],
-                               columns=["database", "code", "type", "processor", "allocation_factor", "substitute", "substitution_factor"])
+                               columns=["database", "code", "type", "processor", "allocation_factor", "substitute",
+                                        "substitution_factor"])
         node_df = node_df.merge(id_map[["database", "code", "id"]], on=["database", "code"])
         node_df["processor"] = node_df["processor"].map(id_mapper).astype("Int64")
         node_df["substitute"] = node_df["substitute"].map(id_mapper).astype("Int64")
         node_df = node_df[["id", "type", "processor", "allocation_factor", "substitute", "substitution_factor"]]
 
-        raw = pd.read_sql(f"SELECT data, input_database FROM exchangedataset WHERE output_database = '{self.name}'", con)
-        exc_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]], columns=["input", "output", "type", "amount"])
+        raw = pd.read_sql(f"SELECT data, input_database FROM exchangedataset WHERE output_database = '{self.name}'",
+                          con)
+        exc_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]],
+                              columns=["input", "output", "type", "amount", "uncertainty type"] + UNCERTAINTY_FIELDS)
+
+        exc_df.update(exc_df["uncertainty_type"].rename("uncertainty type"))
+        exc_df["uncertainty_type"] = exc_df["uncertainty type"]
+        exc_df.drop(["uncertainty type"], axis=1, inplace=True)
+
         exc_df["input"] = exc_df["input"].map(id_mapper).astype("Int64")
         exc_df["output"] = exc_df["output"].map(id_mapper).astype("Int64")
 
@@ -235,3 +145,168 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         log.debug(f"Processing: built tables from SQL in {time() - t:.2f} seconds")
 
         return node_df, exc_df, dependents
+
+
+class Build:
+    @staticmethod
+    def technosphere(nodes, exchanges):
+        consumption = Build.consumption(nodes, exchanges)
+        production = Build.production(nodes, exchanges)
+        return pd.concat([consumption, production])
+
+    @staticmethod
+    def biosphere(nodes, exchanges):
+        x = Build.allocated(nodes, exchanges, ["biosphere"])
+        x["flip"] = False
+        return x[["row", "col", "amount", "flip"] + UNCERTAINTY_FIELDS]
+
+    @staticmethod
+    def consumption(nodes, exchanges):
+        x = Build.allocated(nodes, exchanges, ["technosphere"])
+        x["flip"] = True
+        return x[["row", "col", "amount", "flip"] + UNCERTAINTY_FIELDS]
+
+    @staticmethod
+    def production(nodes, exchanges):
+        x = Join.production_exchanges_to_functions(nodes, exchanges)
+
+        x["flip"] = False
+        x.rename(columns={"input": "row", "output": "col"}, inplace=True)
+
+        return x[["row", "col", "amount", "flip"] + UNCERTAINTY_FIELDS]
+
+    @staticmethod
+    def allocated(nodes, exchanges, exchange_types):
+        x = Join.exchanges_to_functions(nodes, exchanges, exchange_types)
+        x = Mutate.allocate_amount(x)
+        x = Mutate.allocate_distributions(x)
+        x.rename(columns={"input": "row", "output": "col"}, inplace=True)
+
+        return x[["row", "col", "amount"] + UNCERTAINTY_FIELDS]
+
+
+class Mutate:
+    @staticmethod
+    def allocate_amount(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        `bw_functional` allocates at processing time by multiplying the amount for non-functional exchanges by the
+        allocation factor of the function.
+
+        This function takes a dataframe with an amount and allocation_factor column and returns a dataframe with
+        allocated amounts.
+        """
+        df["amount"] = df["allocation_factor"].fillna(1) * df["amount"]
+        return df
+
+    @staticmethod
+    def allocate_distributions(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        To make stochastic modelling work for allocated process-functions we need to allocate the uncertainty
+        distributions as well. We can use a standard method for this for most distributions, where we multiply the LOC,
+        SCALE, MINIMUM and MAXIMUM with the allocation factor. The LogNormalUncertainty requires a different approach
+        where we add the LN of the allocation factor to the LOC.
+
+        Currently unsupported distributions for this are: Bernoulli, Discrete Uniform, Beta, Student's T. Though this
+        may be fixed through the `stats_arrays` package in the future.
+
+        This function takes a DataFrame with uncertainty columns and an allocation_factor and applies said
+        allocation_factor to the distributions. Warning the user if any unsupported distributions have allocation
+        factors.
+        """
+        # distributions that use the standard method
+        standard = [sa.NormalUncertainty.id, sa.UniformUncertainty.id, sa.TriangularUncertainty.id,
+                    sa.WeibullUncertainty.id, sa.GammaUncertainty.id, sa.GeneralizedExtremeValueUncertainty.id,
+                    sa.UndefinedUncertainty, sa.NoUncertainty]
+        # lognormal uncertainty
+        ln = [sa.LognormalUncertainty.id]
+
+        labels = (
+                # if the uncertainty is not in either [standard] or [ln] AND
+                (~df["uncertainty_type"].isin(standard + ln)) &
+                # the allocation factor is not undefined OR equal to one
+                (df["allocation_factor"].fillna(1) != 1).any(axis=None)
+        )
+        # warn the user
+        if pd.Series.any(labels):
+            log.warning("Database contains distributions that cannot be allocated")
+
+        # apply the standard method to applicable distributions
+        labels = df["uncertainty_type"].isin(standard)
+        df.loc[labels, "loc"] = df.loc[labels, "loc"] * df.loc[labels, "allocation_factor"].fillna(1)
+        df.loc[labels, "scale"] = df.loc[labels, "scale"] * df.loc[labels, "allocation_factor"].fillna(1)
+        df.loc[labels, "minimum"] = df.loc[labels, "minimum"] * df.loc[labels, "allocation_factor"].fillna(1)
+        df.loc[labels, "maximum"] = df.loc[labels, "maximum"] * df.loc[labels, "allocation_factor"].fillna(1)
+
+        # apply the LN method to lognormal distributions
+        labels = df["uncertainty_type"].isin(ln)
+        df.loc[labels, "loc"] = df.loc[labels, "loc"] + np.log(df.loc[labels, "allocation_factor"].fillna(1))
+
+        return df
+
+    @staticmethod
+    def set_default_uncertainty_values(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Datapackages expect a valid stats array for each exchange. This means that for exchanges that have no
+        uncertainty associated, 'UndefinedUncertainty' must be set, with the exchanges' amount value as LOC.
+
+        This function sets all non-defined uncertainties to UndefinedUncertainty. And sets the loc value for all
+        UndefinedUncertainty and NoUncertainty entries that have no LOC predefined to the amount value of the exchange.
+        """
+        # set all undefined uncertainties to the UndefinedUncertainty type
+        df["uncertainty_type"] = df["uncertainty_type"].fillna(sa.UndefinedUncertainty.id)
+
+        labels = (
+                # if the uncertainty type is either UndefinedUncertainty or NoUncertainty AND
+                df["uncertainty_type"].isin([sa.UndefinedUncertainty.id, sa.NoUncertainty.id]) &
+                # if LOC is not defined
+                (df["loc"].isna())
+        )
+        # replace LOC with the exchange amount
+        df.loc[labels, "loc"] = df.loc[labels, "amount"]
+        return df
+
+
+class Join:
+    """
+    `bw_functional` creates a square matrix by only using the function ids as row and column indexes. All exchanges
+    of a process must therefore be bound to it's functions instead. So we join the nodes and exchanges dataframe
+    based on the 'processor' of the node and the 'output' of the exchange. This class contains utility functions to do
+    just that.
+    """
+
+    @staticmethod
+    def exchanges_to_functions(
+            nodes: pd.DataFrame,
+            exchanges: pd.DataFrame,
+            exchange_types: tuple | list,
+            keep=("allocation_factor",)
+    ) -> pd.DataFrame:
+        """
+        Joins exchanges of type `exchange_type` from the processes to all the functions of the processes.
+        """
+        exchanges = exchanges.loc[exchanges["type"].isin(exchange_types)]
+        functions = nodes.dropna(subset="processor").drop("type", axis=1)
+
+        joined = functions.merge(exchanges, left_on="processor", right_on="output")
+        joined = joined.drop(["processor", "output"], axis=1)
+        joined = joined.rename(columns={"id": "output"})
+
+        return joined[list(exchanges.columns) + list(keep)]
+
+    @staticmethod
+    def production_exchanges_to_functions(
+            nodes: pd.DataFrame,
+            exchanges: pd.DataFrame,
+            keep=()
+    ) -> pd.DataFrame:
+        """
+        Joins exchanges of type `production` from the processes to the functions they belong to.
+        """
+        production_exchanges = exchanges.loc[exchanges["type"] == "production"]
+        functions = nodes.dropna(subset="processor").drop("type", axis=1)
+
+        joined = functions.merge(production_exchanges, left_on=["id", "processor"], right_on=["input", "output"])
+        joined = joined.drop(["processor", "output"], axis=1)
+        joined = joined.rename(columns={"id": "output"})
+
+        return joined[list(exchanges.columns) + list(keep)]
