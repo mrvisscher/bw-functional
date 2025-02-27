@@ -29,7 +29,7 @@ class MFExchange(Exchange):
 
         # no support for parameterization at this time because we can't allocate when amounts change through parameter
         # changes as this happens behind the scenes
-        if self["type"] == "production" and self.get("formula"):
+        if self["type"] == "production" and "formula" in self:
             del self["formula"]
             raise NotImplementedError("Parameterization not supported for functions")
 
