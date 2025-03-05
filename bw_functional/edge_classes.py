@@ -1,4 +1,5 @@
 from logging import getLogger
+from copy import deepcopy
 
 from bw2data import projects, databases
 from bw2data.backends.proxies import Exchange, Exchanges, ExchangeDataset
@@ -20,6 +21,28 @@ class MFExchanges(Exchanges):
 
 
 class MFExchange(Exchange):
+
+    @property
+    def virtual_edges(self) -> list[dict]:
+        from .node_classes import Process, Function
+        edges = []
+
+        if self["type"] == "production":
+            ds = self.as_dict()
+            ds["output"] = ds["input"]
+            return [ds]
+
+        if not isinstance(self.output, Process):
+            raise ValueError("Output must be an instance of Process")
+
+        for function in self.output.functions():
+            ds = deepcopy(self.as_dict())
+            ds["amount"] = ds["amount"] * function.get("allocation_factor", 1)
+            ds["output"] = function.key
+            edges.append(ds)
+
+        return edges
+
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         from .node_classes import Process, Function
         log.debug(f"Saving {self['type']} Exchange: {self}")

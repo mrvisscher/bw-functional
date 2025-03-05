@@ -234,6 +234,22 @@ class Function(MFActivity):
         self["processor"] = processor.key
         return processor
 
+    @property
+    def virtual_edges(self) -> list[dict]:
+        virtual_exchanges = []
+        for exchange in self._edges_class(self["processor"], ["technosphere", "biosphere"]):
+            ds = exchange.as_dict()
+            ds["amount"] = ds["amount"] * self.get("allocation_factor", 1)
+            ds["output"] = self.key
+            virtual_exchanges.append(ds)
+
+        # also set the production edge
+        production = self.processing_edge.as_dict()
+        production["output"] = self.key
+
+        return virtual_exchanges
+
+
     def substitute(self, substitute_key: tuple | None = None, substitution_factor=1.0):
         """Can I think of a way to substitute here?"""
         if substitute_key is None:
@@ -245,7 +261,6 @@ class Function(MFActivity):
 
         self["substitute"] = substitute_key
         self["substitution_factor"] = substitution_factor
-
 
     def new_edge(self, **kwargs):
         """Impossible for a Function"""
