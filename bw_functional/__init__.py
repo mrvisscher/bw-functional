@@ -39,8 +39,6 @@ if "readonly_process" not in labels.process_node_types:
     labels.process_node_types.append("readonly_process")
 if "readonly_process" not in labels.node_types:
     labels.lci_node_types.append("readonly_process")
-    labels.lci_node_types.append("reduct")
+    labels.lci_node_types.append("waste")
     labels.lci_node_types.append("nonfunctional")
 
-if "reduction" not in labels.technosphere_negative_edge_types:
-    labels.technosphere_negative_edge_types.append("reduction")

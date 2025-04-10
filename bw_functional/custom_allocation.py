@@ -6,10 +6,9 @@ from numbers import Number
 from typing import List, Optional
 
 from bw2data import Database, databases
-from bw2data.backends import Exchange, Node
+from bw2data.backends import Exchange
 
 from . import allocation_strategies
-from .allocation import property_allocation
 from .node_classes import Function, Process
 
 DEFAULT_ALLOCATIONS = set(allocation_strategies)
