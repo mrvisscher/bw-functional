@@ -120,7 +120,7 @@ def get_property_value(
         return prop
 
     if prop.get("normalize", False):
-        return function.processing_edge["amount"] * prop["amount"]
+        return abs(function.processing_edge["amount"]) * prop["amount"]
     else:
         return prop["amount"]
 
