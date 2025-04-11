@@ -40,7 +40,8 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
     backend = "functional_sqlite"
     node_class = functional_dispatcher_method
 
-    def relabel_data(self, data: dict, old_name: str, new_name: str) -> dict:
+    @staticmethod
+    def relabel_data(data: dict, old_name: str, new_name: str) -> dict:
         """
         Relabels data to update references from an old database name to a new one.
 
