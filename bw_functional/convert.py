@@ -1,7 +1,12 @@
 import tqdm
+from logging import getLogger
 
 import bw2data as bd
 from bw2data.backends import SQLiteBackend
+
+from .database import FunctionalSQLiteDatabase
+
+log = getLogger(__name__)
 
 
 def convert_sqlite_to_functional_sqlite(database_name: str) -> dict:
@@ -81,24 +86,58 @@ class SQLiteToFunctionalSQLite:
                 continue
             exc["input"] = (database, exc["input"][1] + "_function")
 
-def convert_functional_sqlite_to_sqlite(database_name: str) -> None:
-    """
-    Convert a database to the functional_sqlite backend.
 
-    This function converts a database to the functional_sqlite backend by copying the data
-    from the original database and updating the backend type.
+def convert_functional_sqlite_to_sqlite(database_name: str):
+    return FunctionalSQLiteToSQLite.convert(database_name)
 
-    Args:
-        database_name (str): The name of the database to convert.
 
-    Raises:
-        ValueError: If the database is already of type functional_sqlite.
-    """
-    from bw2data import Database
+class FunctionalSQLiteToSQLite:
+    @classmethod
+    def convert(cls, database_name: str):
+        db = bd.Database(database_name)
 
-    db = Database(database_name)
-    if db.backend_type == "functional_sqlite":
-        raise ValueError("Database is already of type functional_sqlite.")
+        if not isinstance(db, FunctionalSQLiteDatabase):
+            raise TypeError("Database is not of type functional_sqlite.")
 
-    db.copy(database_name, backend="functional_sqlite")
+        raw = db.load()
+        converted = {}
 
+        for key, ds in tqdm.tqdm(raw.items()):
+            if ds["type"] in ["product", "waste"]:
+                processor = raw[ds["processor"]]
+                converted[key] = cls.convert_function(key, ds, processor)
+
+        return converted
+
+    @classmethod
+    def convert_function(cls, key, ds, processor):
+        ds["type"] = "processwithreferenceproduct"
+        ds["product"] = ds["name"]
+        ds["name"] = processor["name"]
+
+        ds["exchanges"] = []
+        del ds["processor"]
+
+        for exc in processor["exchanges"]:
+            exc = exc.copy()
+            exc["output"] = key
+
+            if exc["type"] == "production" and exc["input"] != key:
+                # production exchange of another function than this one
+                continue
+
+            if exc["type"] != "production" and ds.get("allocation_factor"):
+                log.info(f"Allocating exchange from {exc['input']} to {ds['name']} "
+                         f"with factor {ds['allocation_factor']}")
+                exc["amount"] = exc["amount"] * ds['allocation_factor']
+                if exc.get("formula"):
+                    log.info(f"Allocating formula from {exc['input']} to {ds['name']}: "
+                             f"{exc['formula']} * {ds['allocation_factor']}")
+                    exc["formula"] = f"{exc['formula']} * {ds['allocation_factor']}"
+                if exc.get("uncertainty type"):
+                    log.warning(f"Exchange from {exc['input']} to {ds['name']} has an uncertainty distribution that "
+                                f"will not be allocated")
+
+            ds["exchanges"].append(exc)
+
+        return ds

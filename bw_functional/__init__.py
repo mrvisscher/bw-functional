@@ -35,10 +35,8 @@ DATABASE_BACKEND_MAPPING["functional_sqlite"] = FunctionalSQLiteDatabase
 NODE_PROCESS_CLASS_MAPPING["functional_sqlite"] = functional_node_dispatcher
 
 
-if "readonly_process" not in labels.process_node_types:
-    labels.process_node_types.append("readonly_process")
-if "readonly_process" not in labels.node_types:
-    labels.lci_node_types.append("readonly_process")
+if "waste" not in labels.node_types:
     labels.lci_node_types.append("waste")
-    labels.lci_node_types.append("nonfunctional")
+if "nonfunctional" not in labels.node_types:
+    labels.other_node_types.append("nonfunctional")
 
