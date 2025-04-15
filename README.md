@@ -49,7 +49,7 @@ Users create and register a `bw_functional.FunctionalSQLiteDatabase`. Registerin
 ```python
 import bw_functional
 mf_db = bw_functional.FunctionalSQLiteDatabase("emojis FTW")
-mf_db.register(default_allocation="price")
+mf_db.register()
 ```
 
 Multifunctional process(es) are created and written to the `FunctionalSQLiteDatabase`. A multifunctional process is any process with multiple "functions", either outputs (products) and/or input (reducts).
@@ -60,18 +60,20 @@ mf_data = {
         "type": "product",
         "name": "meow",
         "unit": "kg",
+        "processor": ("emojis FTW", "1"),
         "properties": {
-            "price": 7,
-            "mass": 6,
+            "price": {'unit': 'EUR', 'amount': 7, 'normalize': True},
+            "mass": {'unit': 'kg', 'amount': 1, 'normalize': True},
         },
     },
     ("emojis FTW", "🐶"): {
         "type": "product",
         "name": "woof",
         "unit": "kg",
+        "processor": ("emojis FTW", "1"),
         "properties": {
-            "price": 12,
-            "mass": 4,
+            "price": {'unit': 'EUR', 'amount': 12, 'normalize': True},
+            "mass": {'unit': 'kg', 'amount': 4, 'normalize': True},
         },
     },
     ("emojis FTW", "1"): {
@@ -100,78 +102,23 @@ _WORK IN PROGRESS_
 
 ### Built-in allocation functions
 
-`multifunctional` includes the following built-in property-based allocation functions:
+`bw-functional` includes the following built-in allocation functions:
 
-* `price`: Does economic allocation based on the property "price" in each functional edge.
-* `mass`: Does economic allocation based on the property "mass" in each functional edge.
-* `manual_allocation`: Does allocation based on the property "manual_allocation" in each functional edge. Doesn't normalize by amount of production exchange.
+* `manual_allocation`: Does allocation based on the "allocation" field of the Function. Doesn't normalize by amount of production exchange.
 * `equal`: Splits burdens equally among all functional edges.
 
-Property-based allocation assumes that each `Function` node has a `properties` dictionary, and this dictionary has the relevant key with a corresponding numeric value. For example, for `price` allocation, each `Function` needs to have `'properties' = {'price': some_number}`.
-
-### Custom property-based allocation functions
-
-To create new property-based allocation functions, add an entry to `allocation_strategies` using the function `property_allocation`:
-
-```python
-import bw_functional as bf
-bf.allocation_strategies['<label in function dictionary>'] = bf.property_allocation(property_label='<property string>')
-```
-
-Additions to `allocation_strategies` are not persisted, so they need to be added each time you start a new Python interpreter or Jupyter notebook.
-
-### Custom single-factor allocation functions
-
-To create custom allocation functions which apply a single allocation factor to all nonfunctional inputs and outputs, pass a getter function to `bw_functional.allocation.generic_allocation`. This function needs to accept the following input argument:
-
-* function: An instance of `multifunctional.Function`
-
-The getter should return a number.
-
-The custom getter needs to be curried and added to `allocation_strategies`. You can follow this example:
-
-```python
-import bw_functional as bf
-from functools import partial
-
-def allocation_factor(function: bf.Function) -> float:
-   """Nonsensical allocation factor generation"""
-   if function.get("unit") == "kg":
-      return 1.2
-   elif "silly" in function["name"]:
-      return 4.2
-   else:
-      return 7
-
-bf.allocation_strategies['silly'] = partial(
-   bf.generic_allocation,
-   getter=allocation_factor,
-)
-```
-
-[//]: # (### Other custom allocation functions)
-
-[//]: # ()
-[//]: # (To have complete control over allocation, add your own function to `allocation_strategies`. This function should take an input of *either* `multifunctional.MaybeMultifunctionalProcess` or a plain data dictionary, and return a list of data dictionaries *including the original input process*. These dictionaries can follow the [normal `ProcessWithReferenceProduct` data schema]&#40;https://github.com/brightway-lca/bw_interface_schemas/blob/5fb1d40587aec2a4bb2248505550fc883a91c355/bw_interface_schemas/lci.py#L83&#41;, but the result datasets need to also include the following:)
-
-[//]: # ()
-[//]: # (* `mf_parent_key`: Integer database id of the source multifunctional process)
-
-[//]: # (* `type`: One of "readonly_process", "process", or "multifunctional")
-
-[//]: # ()
-[//]: # (Furthermore, the code of the allocated processes &#40;`mf_allocated_process_code`&#41; must be written to each functional edge &#40;and that edge saved so this data is persisted&#41;. See the code in `multifunctional.allocation.generic_allocation` for an example.)
+You can also do property-based allocation by specifying the property label in the `allocation` field of the Process.
 
 ## Technical notes
 
 ### Process-specific allocation strategies
 
-Individual processes can override the default database allocation by specifying their own `default_allocation`:
+Individual processes can override the default database allocation by specifying their own `allocation`:
 
 ```python
-import bw2data
-node = bw2data.get(database="emojis FTW", code="1")
-node["default_allocation"] = "mass"
+import bw2data as bd
+node = bd.get_activity(database="emojis FTW", code="1")
+node["allocation"] = "mass"
 node.save()
 ```
 

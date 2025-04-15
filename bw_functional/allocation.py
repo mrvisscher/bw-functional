@@ -43,11 +43,11 @@ def generic_allocation(
     if not isinstance(process, Process):
         raise ValueError("Activity must be a Process instance")
 
-    # Return an empty list if the process is not multifunctional
+    # Return none if the process is not multifunctional
     if not process.multifunctional:
         return
 
-    # Collect functions eligible for allocation
+    # Collect functions eligible for allocation (functions that are not subsituted)
     functions = []
     for fn in process.functions():
         if fn.get("substitution_factor", 0) > 0 and fn["allocation_factor"] > 0:

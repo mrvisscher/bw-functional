@@ -181,35 +181,60 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
             except KeyError:
                 raise KeyError(f"Node key {key} not found.")
 
+        # Retrieve the mapping of IDs to database and code from the `activitydataset` table
         id_map = pd.read_sql(f"SELECT id, database, code FROM activitydataset", con)
+
+        # Create a new column `key` by combining `database` and `code` into a tuple
         id_map["key"] = id_map.loc[:, ["database", "code"]].apply(tuple, axis=1)
+
+        # Convert the mapping of `key` to `id` into a dictionary for quick lookups
         id_map_dict = id_map.set_index("key")["id"].to_dict()
 
+        # Retrieve raw data from the `activitydataset` table for the current database
         raw = pd.read_sql(f"SELECT data FROM activitydataset WHERE database = '{self.name}'", con)
+
+        # Deserialize the raw data using `pickle` and create a DataFrame with specified columns
         node_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]],
                                columns=["database", "code", "type", "processor", "allocation_factor", "substitute",
                                         "substitution_factor"])
+
+        # Merge the `node_df` with the `id_map` to include the `id` column
         node_df = node_df.merge(id_map[["database", "code", "id"]], on=["database", "code"])
+
+        # Map the `processor` and `substitute` columns to their corresponding IDs using `id_mapper`
         node_df["processor"] = node_df["processor"].map(id_mapper).astype("Int64")
         node_df["substitute"] = node_df["substitute"].map(id_mapper).astype("Int64")
+
+        # Select and reorder the relevant columns for the final `node_df`
         node_df = node_df[["id", "type", "processor", "allocation_factor", "substitute", "substitution_factor"]]
 
+        # Retrieve raw data from the `exchangedataset` table for the current database
         raw = pd.read_sql(f"SELECT data, input_database FROM exchangedataset WHERE output_database = '{self.name}'",
                           con)
+
+        # Deserialize the raw data using `pickle` and create a DataFrame with specified columns
         exc_df = pd.DataFrame([pickle.loads(x) for x in raw["data"]],
                               columns=["input", "output", "type", "amount", "uncertainty type"] + UNCERTAINTY_FIELDS)
 
+        # Update the `uncertainty_type` column to ensure consistency
         exc_df.update(exc_df["uncertainty_type"].rename("uncertainty type"))
         exc_df["uncertainty_type"] = exc_df["uncertainty type"]
+
+        # Drop the redundant `uncertainty type` column
         exc_df.drop(["uncertainty type"], axis=1, inplace=True)
 
+        # Map the `input` and `output` columns to their corresponding IDs using `id_mapper`
         exc_df["input"] = exc_df["input"].map(id_mapper).astype("Int64")
         exc_df["output"] = exc_df["output"].map(id_mapper).astype("Int64")
 
+        # Identify dependent databases by extracting unique values from the `input_database` column
         dependents = set(raw["input_database"].unique())
+
+        # Remove the current database name from the set of dependents, if present
         if self.name in dependents:
             dependents.remove(self.name)
 
+        # Close the SQLite connection
         con.close()
 
         log.debug(f"Processing: built tables from SQL in {time() - t:.2f} seconds")
