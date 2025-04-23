@@ -175,7 +175,7 @@ class MFActivity(Activity):
             MFActivity: A copy of the activity.
         """
         act = super().copy(*args, **kwargs)
-        return self.__class__(**act)
+        return self.__class__(document=act._document)
 
 
 class Process(MFActivity):
@@ -208,6 +208,33 @@ class Process(MFActivity):
 
         if not created and old.data.get("allocation") != self.get("allocation"):
             self.allocate()
+
+    def copy(self, *args, **kwargs):
+        """
+        Create a copy of the process.
+
+        Args:
+            *args: Positional arguments for the copy operation.
+            **kwargs: Keyword arguments for the copy operation.
+
+        Returns:
+            Process: A copy of the process.
+        """
+        act = super().copy(*args, **kwargs)
+
+        for function in self.functions():
+            input_database, input_code = function.key
+            output_database, output_code = act.key
+
+            MFExchange.ORMDataset.get(
+                input_database=input_database, input_code=input_code, output_database=output_database,
+                output_code=output_code, type="production").delete_instance()
+
+            copied_fn = function.copy(processor=act.key, signal=False)
+            copied_fn.create_processing_edge()
+            copied_fn.save()
+
+        return act
 
     def deduct_type(self) -> str:
         """
@@ -411,8 +438,7 @@ class Function(MFActivity):
 
         # If the function is new and there's no production exchange yet, create one
         if created and not edge:
-            amount = 1.0 if self["type"] == "product" else -1.0
-            MFExchange(input=self.key, output=self["processor"], amount=amount, type="production").save()
+            self.create_processing_edge()
 
         # If the function is new and has a processing edge, allocate the processor
         if created and edge and isinstance(edge.output, Process):
@@ -461,6 +487,13 @@ class Function(MFActivity):
         if len(excs) == 0:
             return None
         return list(excs)[0]
+
+    def create_processing_edge(self):
+        """
+        Create a new processing edge for the function.
+        """
+        amount = 1.0 if self["type"] == "product" else -1.0
+        MFExchange(input=self.key, output=self["processor"], amount=amount, type="production").save()
 
     @property
     def processor(self) -> Process | None:
@@ -564,7 +597,7 @@ class Function(MFActivity):
 
         if not self.get("type"):
             errors.append("Missing field ``type``, function most be ``product`` or ``waste``")
-        elif self["type"] != "product" and self["type"] != "waste":
+        elif self["type"] not in ["product", "waste", "orphaned_product"]:
             errors.append("Function ``type`` most be ``product`` or ``waste``")
 
         if errors:
