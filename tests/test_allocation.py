@@ -4,12 +4,12 @@ from bw2data.tests import bw2test
 
 from bw_functional import FunctionalSQLiteDatabase
 from bw_functional.allocation import generic_allocation
-from bw_functional.node_classes import Process, Function, ReadOnlyProcess
+from bw_functional.node_classes import Process, Product, ReadOnlyProcess
 
 
 def check_basic_allocation_results(factor_1, factor_2, database):
     nodes = sorted(database, key=lambda x: (x["name"], x.get("reference product", "")))
-    functions = list(filter(lambda x: isinstance(x, Function), nodes))
+    functions = list(filter(lambda x: isinstance(x, Product), nodes))
     allocated = list(filter(lambda x: isinstance(x, ReadOnlyProcess), nodes))
 
     # === Checking allocated process 1 ===
@@ -105,7 +105,7 @@ def test_without_allocation(basic):
     for key, value in expected.items():
         assert nodes[1][key] == value
 
-    assert isinstance(nodes[2], Function)
+    assert isinstance(nodes[2], Product)
     assert not nodes[2].multifunctional
     assert nodes[2].processor.key == nodes[1].key
     expected = {
@@ -116,7 +116,7 @@ def test_without_allocation(basic):
     for key, value in expected.items():
         assert nodes[2][key] == value
 
-    assert isinstance(nodes[3], Function)
+    assert isinstance(nodes[3], Product)
     assert not nodes[3].multifunctional
     assert nodes[3].processor.key == nodes[1].key
     expected = {

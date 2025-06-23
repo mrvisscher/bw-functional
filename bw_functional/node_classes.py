@@ -258,13 +258,13 @@ class Process(MFActivity):
             **kwargs: Additional arguments for creating the product.
 
         Returns:
-            Function: A new product function.
+            Product: A new product function.
         """
         kwargs["type"] = "product"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
         kwargs["properties"] = self.get("default_properties", {})
-        return Function(**kwargs)
+        return Product(**kwargs)
 
     def new_waste(self, **kwargs):
         """
@@ -274,13 +274,13 @@ class Process(MFActivity):
             **kwargs: Additional arguments for creating the reduction.
 
         Returns:
-            Function: A new waste function.
+            Product: A new waste function.
         """
         kwargs["type"] = "waste"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
         kwargs["properties"] = self.get("default_properties", {})
-        return Function(**kwargs)
+        return Product(**kwargs)
 
     def new_default_property(self, name: str, unit: str, amount=1.0, normalize=False):
         """
@@ -377,7 +377,7 @@ class Process(MFActivity):
         alloc_function(self)
 
 
-class Function(MFActivity):
+class Product(MFActivity):
     """
     Represents a function that can be either a 'product' or 'waste'.
 
@@ -569,7 +569,7 @@ class Function(MFActivity):
         """
         Validate the function.
 
-        A `Function` is considered valid if:
+        A `Product` is considered valid if:
         - It has a `processor` key that is a tuple and corresponds to an existing process node.
         - It has a `type` field, which must be either "product" or "waste".
         - It passes the validation checks of the parent `MFActivity` class.
@@ -598,7 +598,7 @@ class Function(MFActivity):
         if not self.get("type"):
             errors.append("Missing field ``type``, function most be ``product`` or ``waste``")
         elif self["type"] not in ["product", "waste", "orphaned_product"]:
-            errors.append("Function ``type`` most be ``product`` or ``waste``")
+            errors.append("Product ``type`` most be ``product`` or ``waste``")
 
         if errors:
             if why:

@@ -104,7 +104,7 @@ _WORK IN PROGRESS_
 
 `bw-functional` includes the following built-in allocation functions:
 
-* `manual_allocation`: Does allocation based on the "allocation" field of the Function. Doesn't normalize by amount of production exchange.
+* `manual_allocation`: Does allocation based on the "allocation" field of the Product. Doesn't normalize by amount of production exchange.
 * `equal`: Splits burdens equally among all functional edges.
 
 You can also do property-based allocation by specifying the property label in the `allocation` field of the Process.

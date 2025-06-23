@@ -2,7 +2,7 @@ from functools import partial
 from typing import Callable, List
 from logging import getLogger
 
-from .node_classes import Process, Function
+from .node_classes import Process, Product
 
 log = getLogger(__name__)
 
@@ -27,7 +27,7 @@ def generic_allocation(
 
     Args:
         process (Process): The process object to allocate. Must be an instance of the `Process` class.
-        getter (Callable): A function that takes a `Function` object and returns a float value
+        getter (Callable): A function that takes a `Product` object and returns a float value
             used for allocation calculations.
 
     Raises:
@@ -73,7 +73,7 @@ def generic_allocation(
 
 
 def get_property_value(
-    function: Function,
+    function: Product,
     property_label: str,
 ) -> float:
     """
@@ -85,7 +85,7 @@ def get_property_value(
     edge with the `amount` of the property.
 
     Args:
-        function (Function): The function object from which the property value is retrieved.
+        function (Product): The function object from which the property value is retrieved.
             Must be an instance of the `Function` class.
         property_label (str): The label of the property to retrieve.
 
@@ -102,18 +102,18 @@ def get_property_value(
         - If the property is normalized, the value is calculated as:
           `function.processing_edge["amount"] * prop["amount"]`.
     """
-    if not isinstance(function, Function):
+    if not isinstance(function, Product):
         raise ValueError("Passed non-function for allocation")
 
     props = function.get("properties")
 
     if not props:
-        raise KeyError(f"Function {function} from process {function.processor} doesn't have properties")
+        raise KeyError(f"Product {function} from process {function.processor} doesn't have properties")
 
     prop = props.get(property_label)
 
     if not prop:
-        raise KeyError(f"Function {function} from {function.processor} missing property {property_label}")
+        raise KeyError(f"Product {function} from {function.processor} missing property {property_label}")
 
     if isinstance(prop, float):
         log.warning("Property using legacy float format")

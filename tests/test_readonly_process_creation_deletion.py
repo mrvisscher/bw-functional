@@ -3,7 +3,7 @@ from bw2data.tests import bw2test
 
 from bw_functional import FunctionalSQLiteDatabase
 from bw_functional.allocation import generic_allocation
-from bw_functional.node_classes import Process, Function
+from bw_functional.node_classes import Process, Product
 
 
 def test_allocation_creates_readonly_nodes(basic):

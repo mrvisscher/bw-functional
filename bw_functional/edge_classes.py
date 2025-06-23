@@ -71,7 +71,7 @@ class MFExchange(Exchange):
         Raises:
             ValueError: If the output is not an instance of the `Process` class.
         """
-        from .node_classes import Process, Function
+        from .node_classes import Process, Product
         edges = []
 
         if self["type"] == "production":
@@ -105,7 +105,7 @@ class MFExchange(Exchange):
         Raises:
             NotImplementedError: If parameterization is attempted for production exchanges.
         """
-        from .node_classes import Process, Function
+        from .node_classes import Process, Product
         log.debug(f"Saving {self['type']} Exchange: {self}")
 
         created = self.id is None  # the exchange is new if it has no id
@@ -122,7 +122,7 @@ class MFExchange(Exchange):
         function = self.input
         process = self.output
 
-        if not isinstance(process, Process) or not isinstance(function, Function):
+        if not isinstance(process, Process) or not isinstance(function, Product):
             return
 
         if self["type"] == "production":
@@ -150,7 +150,7 @@ class MFExchange(Exchange):
         Args:
             signal (bool, optional): Whether to send a signal after deletion. Defaults to True.
         """
-        from .node_classes import Function, Process, MFActivity
+        from .node_classes import Product, Process, MFActivity
         log.debug(f"Deleting {self['type']} Exchange: {self}")
 
         super().delete(signal)
@@ -158,7 +158,7 @@ class MFExchange(Exchange):
         function = self.input
         process = self.output
 
-        if not isinstance(process, Process) or not isinstance(function, Function):
+        if not isinstance(process, Process) or not isinstance(function, Product):
             return
 
         if self["type"] == "production":

@@ -9,7 +9,7 @@ from bw2data import Database, databases
 from bw2data.backends import Exchange
 
 from . import allocation_strategies
-from .node_classes import Function, Process
+from .node_classes import Product, Process
 
 DEFAULT_ALLOCATIONS = set(allocation_strategies)
 
@@ -61,7 +61,7 @@ def list_available_properties(database_label: str, target_process: Optional[Proc
     results = {}
     all_properties = set()
 
-    for function in filter(lambda x: isinstance(x, Function), Database(database_label)):
+    for function in filter(lambda x: isinstance(x, Product), Database(database_label)):
         for key in function.get("properties", {}):
             all_properties.add(key)
 
@@ -104,7 +104,7 @@ def process_property_errors(process: Process, property_label: str) -> List[Prope
                     process_id=process.id,
                     function_id=function.id,
                     message_type=MessageType.MISSING_FUNCTION_PROPERTY,
-                    message=f"""Function is missing a property value for `{property_label}`.
+                    message=f"""Product is missing a property value for `{property_label}`.
 Please define this property for the function:
     {function}
 Referenced by multifunctional process:

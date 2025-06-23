@@ -7,7 +7,7 @@ __all__ = (
     "generic_allocation",
     "list_available_properties",
     "Process",
-    "Function",
+    "Product",
     "MFExchange",
     "MFExchanges",
     "FunctionalSQLiteDatabase",
@@ -26,7 +26,7 @@ from .custom_allocation import (
     list_available_properties,
 )
 from .database import FunctionalSQLiteDatabase
-from .node_classes import Process, Function
+from .node_classes import Process, Product
 from .edge_classes import MFExchange, MFExchanges
 from .node_dispatch import functional_node_dispatcher
 from .utils import allocation_before_writing
