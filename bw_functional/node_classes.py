@@ -379,20 +379,20 @@ class Process(MFActivity):
 
 class Product(MFActivity):
     """
-    Represents a function that can be either a 'product' or 'waste'.
+    Represents a product that can be either a 'product' or 'waste'.
 
-    Functions should always have a `processor` key set, which is a process that handles the function.
+    Products should always have a `processor` key set, which is a process that handles the function.
 
     This class extends `MFActivity` and provides additional functionality for managing
-    functions, including saving, deleting, and validating them, as well as handling
+    products, including saving, deleting, and validating them, as well as handling
     processing edges and substitution.
     """
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         """
-        Save the function to the database.
+        Save the product to the database.
 
-        This method validates the function before saving, determines its type (product or waste),
+        This method validates the product before saving, determines its type (product or waste),
         and handles changes to the processor, allocation properties, and substitution factors.
 
         Args:
