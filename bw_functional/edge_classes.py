@@ -82,10 +82,10 @@ class MFExchange(Exchange):
         if not isinstance(self.output, Process):
             raise ValueError("Output must be an instance of Process")
 
-        for function in self.output.functions():
+        for product in self.output.products():
             ds = deepcopy(self.as_dict())
-            ds["amount"] = ds["amount"] * function.get("allocation_factor", 1)
-            ds["output"] = function.key
+            ds["amount"] = ds["amount"] * product.get("allocation_factor", 1)
+            ds["output"] = product.key
             edges.append(ds)
 
         return edges
