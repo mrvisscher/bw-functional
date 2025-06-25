@@ -250,7 +250,7 @@ class Process(MFActivity):
         else:
             return "process"
 
-    def new_product(self, **kwargs):
+    def new_product(self, type="product", **kwargs):
         """
         Create a new product associated with the process.
 
@@ -260,55 +260,48 @@ class Process(MFActivity):
         Returns:
             Product: A new product.
         """
-        kwargs["type"] = "product"
+        kwargs["type"] = type
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
-        kwargs["properties"] = self.get("default_properties", {})
+        kwargs["properties"] = {p: self.property_template(p) for p in self.available_properties()}
         return Product(**kwargs)
 
-    def new_waste(self, **kwargs):
+    def available_properties(self) -> set[str]:
         """
-        Create a new waste associated with the process.
-
-        Args:
-            **kwargs: Additional arguments for creating the reduction.
+        Retrieve the available properties for the process.
 
         Returns:
-            Product: A new waste function.
+            set[str]: A list of property names available in the process.
         """
-        kwargs["type"] = "waste"
-        kwargs["processor"] = self.key
-        kwargs["database"] = self["database"]
-        kwargs["properties"] = self.get("default_properties", {})
-        return Product(**kwargs)
+        properties = [prod["properties"] for prod in self.products()]
+        property_names = [set(prop.keys()) for prop in properties]
+        common_properties = set.intersection(*property_names) if property_names else set()
 
-    def new_default_property(self, name: str, unit: str, amount=1.0, normalize=False):
+        return common_properties
+
+    def property_template(self, name: str, amount=1.0) -> dict:
         """
-        Add a new default property to the process and its associated products.
+        Create a property template for the process.
 
         Args:
             name (str): The name of the property.
-            unit (str): The unit of the property.
             amount (float, optional): The amount of the property. Defaults to 1.0.
-            normalize (bool, optional): Whether to normalize the property. Defaults to False.
 
-        Raises:
-            ValueError: If the property already exists.
+        Returns:
+            dict: A dictionary representing the property template.
         """
-        if name in self.get("properties", {}):
-            raise ValueError(f"Property already exists within {self}")
+        properties = [prod["properties"][name] for prod in self.products() if name in prod["properties"]]
+        units = set(prop["unit"] for prop in properties)
+        normalize = set(prop.get("normalize", True) for prop in properties)
 
-        prop = {"unit": unit, "amount": amount, "normalize": normalize}
+        if len(units) > 1 or len(normalize) > 1:
+            log.warning(f"Property {name} has inconsistent units or normalization across products.")
 
-        self["default_properties"] = self.get("default_properties", {})
-        self["default_properties"].update({name: prop})
-        self.save()
-
-        for product in self.products():
-            product["properties"] = product.get("properties", {})
-            product["properties"].update({name: prop})
-            product.save()
-
+        return {
+            "unit": units.pop() if units else "unitless",
+            "amount": amount,
+            "normalize": normalize.pop() if normalize else True
+        }
 
     def products(self):
         """
