@@ -34,7 +34,7 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
 
     This class extends the `SQLiteBackend` to provide additional functionality for
     processing and managing processes with one or more functions, including relabeling data, registering
-    metadata, and processing data into a structured format.
+    metadata, and processing data into a structured format..
     """
 
     backend = "functional_sqlite"

@@ -175,7 +175,7 @@ class MFActivity(Activity):
             MFActivity: A copy of the activity.
         """
         act = super().copy(*args, **kwargs)
-        return self.__class__(**act)
+        return self.__class__(document=act._document)
 
 
 class Process(MFActivity):
@@ -209,6 +209,33 @@ class Process(MFActivity):
         if not created and old.data.get("allocation") != self.get("allocation"):
             self.allocate()
 
+    def copy(self, *args, **kwargs):
+        """
+        Create a copy of the process.
+
+        Args:
+            *args: Positional arguments for the copy operation.
+            **kwargs: Keyword arguments for the copy operation.
+
+        Returns:
+            Process: A copy of the process.
+        """
+        act = super().copy(*args, **kwargs)
+
+        for product in self.products():
+            input_database, input_code = product.key
+            output_database, output_code = act.key
+
+            MFExchange.ORMDataset.get(
+                input_database=input_database, input_code=input_code, output_database=output_database,
+                output_code=output_code, type="production").delete_instance()
+
+            copied_fn = product.copy(processor=act.key, signal=False)
+            copied_fn.create_processing_edge()
+            copied_fn.save()
+
+        return act
+
     def deduct_type(self) -> str:
         """
         Deduce the type of the process.
@@ -231,13 +258,13 @@ class Process(MFActivity):
             **kwargs: Additional arguments for creating the product.
 
         Returns:
-            Function: A new product function.
+            Product: A new product.
         """
         kwargs["type"] = "product"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
         kwargs["properties"] = self.get("default_properties", {})
-        return Function(**kwargs)
+        return Product(**kwargs)
 
     def new_waste(self, **kwargs):
         """
@@ -247,17 +274,17 @@ class Process(MFActivity):
             **kwargs: Additional arguments for creating the reduction.
 
         Returns:
-            Function: A new waste function.
+            Product: A new waste function.
         """
         kwargs["type"] = "waste"
         kwargs["processor"] = self.key
         kwargs["database"] = self["database"]
         kwargs["properties"] = self.get("default_properties", {})
-        return Function(**kwargs)
+        return Product(**kwargs)
 
     def new_default_property(self, name: str, unit: str, amount=1.0, normalize=False):
         """
-        Add a new default property to the process and its associated functions.
+        Add a new default property to the process and its associated products.
 
         Args:
             name (str): The name of the property.
@@ -277,17 +304,18 @@ class Process(MFActivity):
         self["default_properties"].update({name: prop})
         self.save()
 
-        for function in self.functions():
-            function["properties"] = function.get("properties", {})
-            function["properties"].update({name: prop})
-            function.save()
+        for product in self.products():
+            product["properties"] = product.get("properties", {})
+            product["properties"].update({name: prop})
+            product.save()
 
-    def functions(self):
+
+    def products(self):
         """
-        Retrieve the functions (products or wastes) associated with the process.
+        Retrieve the products (products or wastes) associated with the process.
 
         Returns:
-            list: A list of functions associated with the process.
+            list: A list of products associated with the process.
         """
         excs = self.exchanges(kinds=["production"])
         return [exc.input for exc in excs]
@@ -350,22 +378,22 @@ class Process(MFActivity):
         alloc_function(self)
 
 
-class Function(MFActivity):
+class Product(MFActivity):
     """
-    Represents a function that can be either a 'product' or 'waste'.
+    Represents a product that can be either a 'product' or 'waste'.
 
-    Functions should always have a `processor` key set, which is a process that handles the function.
+    Products should always have a `processor` key set, which is the process handling the product.
 
     This class extends `MFActivity` and provides additional functionality for managing
-    functions, including saving, deleting, and validating them, as well as handling
+    products, including saving, deleting, and validating them, as well as handling
     processing edges and substitution.
     """
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         """
-        Save the function to the database.
+        Save the product to the database.
 
-        This method validates the function before saving, determines its type (product or waste),
+        This method validates the product before saving, determines its type (product or waste),
         and handles changes to the processor, allocation properties, and substitution factors.
 
         Args:
@@ -374,7 +402,7 @@ class Function(MFActivity):
             force_insert (bool, optional): Whether to force an insert operation. Defaults to False.
 
         Raises:
-            ValidityError: If the function is not valid.
+            ValidityError: If the product is not valid.
         """
         if not self.valid():
             raise ValidityError(
@@ -409,21 +437,20 @@ class Function(MFActivity):
         if not created and (old.data.get("substitution_factor", 0) > 0) != (self.get("substitution_factor", 0) > 0):
             self.processor.allocate()
 
-        # If the function is new and there's no production exchange yet, create one
+        # If the product is new and there's no production exchange yet, create one
         if created and not edge:
-            amount = 1.0 if self["type"] == "product" else -1.0
-            MFExchange(input=self.key, output=self["processor"], amount=amount, type="production").save()
+            self.create_processing_edge()
 
-        # If the function is new and has a processing edge, allocate the processor
+        # If the product is new and has a processing edge, allocate the processor
         if created and edge and isinstance(edge.output, Process):
             edge.output.allocate()
 
     def deduct_type(self) -> str:
         """
-        Deduce the type of the function.
+        Deduce the type of the product.
 
         Returns:
-            str: The type of the function, which can be 'product', 'waste', or 'orphaned_product'.
+            str: The type of the product, which can be 'product', 'waste', or 'orphaned_product'.
         """
         edge = self.processing_edge
         if not edge:
@@ -433,39 +460,52 @@ class Function(MFActivity):
         elif edge.amount < 0:
             return "waste"
 
+        # If we reach here, it means the edge amount is invalid
+        raise ValidityError(
+            f"Invalid processing edge amount for {self.key}: {edge.amount}. "
+            "Amount must be positive for products and negative for wastes."
+        )
+
     def delete(self, signal: bool = True):
         """
-        Delete the function and its upstream production exchanges.
+        Delete the product and its upstream production exchanges.
 
         Args:
             signal (bool, optional): Whether to send a signal after deletion. Defaults to True.
         """
-        # Delete the function by deleting it's production exchange. This will make sure there's no infinite loop
+        # Delete the product by deleting its production exchange. This will make sure there's no infinite loop
         self.upstream(["production"]).delete()
 
     @property
     def processing_edge(self) -> MFExchange | None:
         """
-        Retrieve the processing edge of the function.
+        Retrieve the processing edge of the product.
 
         Returns:
             MFExchange or None: The processing edge if it exists, otherwise None.
 
         Raises:
-            ValidityError: If the function has multiple processing edges.
+            ValidityError: If the product has multiple processing edges.
         """
         excs = self.exchanges(kinds=["production"], reverse=True)
 
         if len(excs) > 1:
-            raise ValidityError("Invalid function has multiple processing edges")
+            raise ValidityError("Invalid product has multiple processing edges")
         if len(excs) == 0:
             return None
         return list(excs)[0]
 
+    def create_processing_edge(self):
+        """
+        Create a new processing edge for the product.
+        """
+        amount = 1.0 if self["type"] == "product" else -1.0
+        MFExchange(input=self.key, output=self["processor"], amount=amount, type="production").save()
+
     @property
     def processor(self) -> Process | None:
         """
-        Retrieve the processor (process) associated with the function. If no processor key is set, will try to deduct
+        Retrieve the processor (process) associated with the product. If no processor key is set, will try to deduct
         the processor from the production edge and set the processor key afterwards.
 
         Returns:
@@ -485,7 +525,7 @@ class Function(MFActivity):
     @property
     def virtual_edges(self) -> list[dict]:
         """
-        Generate virtual edges for the function.
+        Generate virtual edges for the product.
 
         Virtual edges are created based on the allocation factor and include technosphere,
         biosphere, and production exchanges.
@@ -507,7 +547,7 @@ class Function(MFActivity):
 
     def substitute(self, substitute_key: tuple | None = None, substitution_factor=1.0):
         """
-        Set or remove substitution for the function.
+        Set or remove substitution for the product.
 
         Args:
             substitute_key (tuple, optional): The key of the substitute. Defaults to None.
@@ -525,18 +565,18 @@ class Function(MFActivity):
 
     def new_edge(self, **kwargs):
         """
-        Create a new edge for the function.
+        Create a new edge for the product.
 
         Raises:
-            NotImplementedError: Functions cannot have input edges.
+            NotImplementedError: Products cannot have input edges.
         """
-        raise NotImplementedError("Functions cannot have input edges")
+        raise NotImplementedError("Products cannot have input edges")
 
     def valid(self, why=False):
         """
-        Validate the function.
+        Validate the product.
 
-        A `Function` is considered valid if:
+        A `Product` is considered valid if:
         - It has a `processor` key that is a tuple and corresponds to an existing process node.
         - It has a `type` field, which must be either "product" or "waste".
         - It passes the validation checks of the parent `MFActivity` class.
@@ -563,9 +603,9 @@ class Function(MFActivity):
                 errors.append("Processor node not found")
 
         if not self.get("type"):
-            errors.append("Missing field ``type``, function most be ``product`` or ``waste``")
-        elif self["type"] != "product" and self["type"] != "waste":
-            errors.append("Function ``type`` most be ``product`` or ``waste``")
+            errors.append("Missing field ``type``, product most be ``product`` or ``waste``")
+        elif self["type"] not in ["product", "waste", "orphaned_product"]:
+            errors.append("Product ``type`` most be ``product`` or ``waste``")
 
         if errors:
             if why:

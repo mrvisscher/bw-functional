@@ -3,7 +3,7 @@ import pytest
 from bw2data.tests import bw2test
 
 import bw_functional as mf
-from bw_functional.node_classes import Process, Function, ReadOnlyProcess
+from bw_functional.node_classes import Process, Product, ReadOnlyProcess
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def allocate_then_write(basic_data):
 
 def check_basic_allocation_results(factor_1, factor_2, database):
     nodes = sorted(database, key=lambda x: (x["name"], x.get("reference product", "")))
-    functions = list(filter(lambda x: isinstance(x, Function), nodes))
+    functions = list(filter(lambda x: isinstance(x, Product), nodes))
     allocated = list(filter(lambda x: isinstance(x, ReadOnlyProcess), nodes))
 
     # === Checking allocated process 1 ===

@@ -9,7 +9,7 @@ from bw2data import Database, databases
 from bw2data.backends import Exchange
 
 from . import allocation_strategies
-from .node_classes import Function, Process
+from .node_classes import Product, Process
 
 DEFAULT_ALLOCATIONS = set(allocation_strategies)
 
@@ -61,8 +61,8 @@ def list_available_properties(database_label: str, target_process: Optional[Proc
     results = {}
     all_properties = set()
 
-    for function in filter(lambda x: isinstance(x, Function), Database(database_label)):
-        for key in function.get("properties", {}):
+    for product in filter(lambda x: isinstance(x, Product), Database(database_label)):
+        for key in product.get("properties", {}):
             all_properties.add(key)
 
     for label in all_properties:
@@ -95,18 +95,18 @@ def process_property_errors(process: Process, property_label: str) -> List[Prope
     if not isinstance(process, Process):
         raise TypeError("Node should be the Process type")
 
-    for function in process.functions():
-        properties = function.get("properties", {})
+    for product in process.products():
+        properties = product.get("properties", {})
         if property_label not in properties:
             messages.append(
                 PropertyMessage(
                     level=logging.WARNING,
                     process_id=process.id,
-                    function_id=function.id,
+                    function_id=product.id,
                     message_type=MessageType.MISSING_FUNCTION_PROPERTY,
-                    message=f"""Function is missing a property value for `{property_label}`.
+                    message=f"""Product is missing a property value for `{property_label}`.
 Please define this property for the function:
-    {function}
+    {product}
 Referenced by multifunctional process:
     {process}
 
@@ -118,11 +118,11 @@ Referenced by multifunctional process:
                 PropertyMessage(
                     level=logging.CRITICAL,
                     process_id=process.id,
-                    function_id=function.id,
+                    function_id=product.id,
                     message_type=MessageType.NONNUMERIC_FUNCTION_PROPERTY,
                     message=f"""Found non-numeric value `{properties[property_label]}` in property `{property_label}`.
 Please redefine this property for the function:
-    {function}
+    {product}
 Referenced by multifunctional process:
     {process}
 
