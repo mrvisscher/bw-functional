@@ -15,17 +15,11 @@ from bw2data.backends import SQLiteBackend, sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset
 from pandas._libs.missing import NAType
 
-from .node_dispatch import functional_node_dispatcher
+from .node_classes import Process, Product
 
 log = getLogger(__name__)
 
 UNCERTAINTY_FIELDS = ["uncertainty_type", "loc", "scale", "shape", "minimum", "maximum"]
-
-
-def functional_dispatcher_method(
-        db: "FunctionalSQLiteDatabase", document: ActivityDataset = None
-):
-    return functional_node_dispatcher(document)
 
 
 class FunctionalSQLiteDatabase(SQLiteBackend):
@@ -38,7 +32,14 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
     """
 
     backend = "functional_sqlite"
-    node_class = functional_dispatcher_method
+
+    @staticmethod
+    def node_class(document: ActivityDataset = None) -> Process | Product:
+        """Dispatch the correct node class depending on document attributes."""
+        if document and document.type in ["product", "waste"]:
+            return Product(document=document)
+        else:
+            return Process(document=document)
 
     @staticmethod
     def relabel_data(data: dict, old_name: str, new_name: str) -> dict:

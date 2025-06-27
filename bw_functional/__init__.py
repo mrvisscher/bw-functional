@@ -1,10 +1,7 @@
 __all__ = (
     "__version__",
     "allocation_strategies",
-    "database_property_errors",
-    "process_property_errors",
     "generic_allocation",
-    "list_available_properties",
     "Process",
     "Product",
     "MFExchange",
@@ -24,12 +21,11 @@ from .allocation import allocation_strategies, generic_allocation, property_allo
 from .database import FunctionalSQLiteDatabase
 from .node_classes import Process, Product
 from .edge_classes import MFExchange, MFExchanges
-from .node_dispatch import functional_node_dispatcher
 
 log = getLogger(__name__)
 
 DATABASE_BACKEND_MAPPING["functional_sqlite"] = FunctionalSQLiteDatabase
-NODE_PROCESS_CLASS_MAPPING["functional_sqlite"] = functional_node_dispatcher
+NODE_PROCESS_CLASS_MAPPING["functional_sqlite"] = FunctionalSQLiteDatabase.node_class
 
 
 if "waste" not in labels.node_types:
