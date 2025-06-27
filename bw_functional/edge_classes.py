@@ -111,12 +111,6 @@ class MFExchange(Exchange):
         created = self.id is None  # the exchange is new if it has no id
         old = ExchangeDataset.get_by_id(self.id) if not created else None
 
-        # Parameterization is not supported for production exchanges because we cannot know when the amount is updated
-        # through updating a parameter. This means we don't know when to reallocate.
-        if self["type"] == "production" and "formula" in self:
-            del self["formula"]
-            raise NotImplementedError("Parameterization not supported for functions")
-
         super().save(signal, data_already_set, force_insert)
 
         function = self.input
