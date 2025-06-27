@@ -1,6 +1,5 @@
 __all__ = (
     "__version__",
-    "allocation_before_writing",
     "allocation_strategies",
     "database_property_errors",
     "process_property_errors",
@@ -31,7 +30,6 @@ from .database import FunctionalSQLiteDatabase
 from .node_classes import Process, Product
 from .edge_classes import MFExchange, MFExchanges
 from .node_dispatch import functional_node_dispatcher
-from .utils import allocation_before_writing
 
 log = getLogger(__name__)
 
