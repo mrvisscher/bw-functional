@@ -6,7 +6,6 @@ from bw2data.errors import UnknownObject, ValidityError
 from bw2data.backends.proxies import Activity, ActivityDataset
 
 from .edge_classes import MFExchanges, MFExchange
-from .errors import NoAllocationNeeded
 
 log = getLogger(__name__)
 
@@ -333,7 +332,7 @@ class Process(MFActivity):
         """
         return len(self.production()) > 1
 
-    def allocate(self, strategy_label: Optional[str] = None) -> Union[None, NoAllocationNeeded]:
+    def allocate(self, strategy_label: Optional[str] = None) -> None:
         """
         Allocate the process using the specified strategy.
 
@@ -344,13 +343,14 @@ class Process(MFActivity):
             strategy_label (str, optional): The label of the allocation strategy. Defaults to None.
 
         Returns:
-            None or NoAllocationNeeded: Returns `NoAllocationNeeded` if allocation is skipped.
+            None
 
         Raises:
             ValueError: If no allocation strategy is found.
         """
         if self.get("skip_allocation") or not self.multifunctional:
-            return NoAllocationNeeded()
+            log.debug(f"Skipping allocation for {repr(self)} (id: {self.id})")
+            return
 
         from . import allocation_strategies, property_allocation
 
