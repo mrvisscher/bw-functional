@@ -21,11 +21,6 @@ from bw2data import labels
 from bw2data.subclass_mapping import DATABASE_BACKEND_MAPPING, NODE_PROCESS_CLASS_MAPPING
 
 from .allocation import allocation_strategies, generic_allocation, property_allocation
-from .custom_allocation import (
-    database_property_errors,
-    process_property_errors,
-    list_available_properties,
-)
 from .database import FunctionalSQLiteDatabase
 from .node_classes import Process, Product
 from .edge_classes import MFExchange, MFExchanges
