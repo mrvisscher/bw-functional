@@ -106,3 +106,36 @@ def test_process_deduct_type(basic):
     assert process.deduct_type() == "nonfunctional"
 
 
+def test_process_new_product(basic):
+    """
+    Test the creation of a new product in a process.
+
+    This test retrieves a process by its code, creates a new product with specific
+    attributes, and verifies that the new product is added to the process. It also
+    checks that the new product has the correct attributes and is linked to the process.
+
+    Args:
+        basic: A fixture or object providing access to the database and processes.
+
+    Assertions:
+        - The new product is successfully created and added to the process.
+        - The new product has the expected attributes.
+        - The new product is linked to the correct processor.
+    """
+    process: bf.Process = basic.get(code="1")
+    new_product = process.new_product(
+        name="new_product",
+        code="new_product_code",
+        unit="kg",
+        amount=10,
+        location="first",
+    )
+    new_product.save()
+
+    assert isinstance(new_product, bf.Product)
+    assert new_product["name"] == "new_product"
+    assert new_product["code"] == "new_product_code"
+    assert new_product["unit"] == "kg"
+    assert new_product["amount"] == 10
+    assert new_product.processor == process
+    assert len(process.products()) == 3
