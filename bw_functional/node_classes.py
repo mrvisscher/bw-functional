@@ -163,20 +163,6 @@ class MFActivity(Activity):
         exc = super().new_edge(**kwargs)
         return self._edge_class(**exc)
 
-    # def copy(self, *args, **kwargs):
-    #     """
-    #     Create a copy of the activity.
-    #
-    #     Args:
-    #         *args: Positional arguments for the copy operation.
-    #         **kwargs: Keyword arguments for the copy operation.
-    #
-    #     Returns:
-    #         MFActivity: A copy of the activity.
-    #     """
-    #     act = super().copy(*args, **kwargs)
-    #     return self.__class__(document=act._document)
-
 
 class Process(MFActivity):
     """

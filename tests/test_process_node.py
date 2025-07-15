@@ -75,3 +75,34 @@ def test_process_copy(basic):
     for product in original_process.products():
         assert product.processor == original_process
 
+
+def test_process_deduct_type(basic):
+    """
+    Test the deduction of process type based on its products.
+
+    This test retrieves a process by its code, checks its initial type, and then
+    modifies the products to change the process type. It verifies that the process
+    type is updated correctly based on the products.
+
+    Args:
+        basic: A fixture or object providing access to the database and processes.
+
+    Assertions:
+        - The initial process type is "multifunctional".
+        - After modifying the products, the process type is updated to "functional".
+    """
+    process: bf.Process = basic.get(code="1")
+    assert process["type"] == "multifunctional"
+    assert process.deduct_type() == "multifunctional"
+
+    process.products()[0].delete()
+    process: bf.Process = basic.get(code="1")
+    assert process["type"] == "process"
+    assert process.deduct_type() == "process"
+
+    process.products()[0].delete()
+    process: bf.Process = basic.get(code="1")
+    assert process["type"] == "nonfunctional"
+    assert process.deduct_type() == "nonfunctional"
+
+
