@@ -7,12 +7,6 @@ from .node_classes import Process, Product
 log = getLogger(__name__)
 
 
-def remove_output(d: dict) -> dict:
-    if "output" in d:
-        del d["output"]
-    return d
-
-
 def generic_allocation(
     process: Process,
     getter: lambda function: float(),
