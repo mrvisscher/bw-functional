@@ -24,7 +24,6 @@ DATA = {
             },
             {
                 "type": "biosphere",
-                "name": "flow - a",
                 "amount": 10,
                 "input": ("basic", "a"),
             },
@@ -37,9 +36,9 @@ DATA = {
             "type": "product",
             "unit": "kg",
             "properties": {
-                "price": 7,
-                "mass": 6,
-                "manual_allocation": 2,
+                "price": {"amount": 15, "unit": "EUR"},
+                "mass": {"amount": 5, "unit": "kg"},
+                "manual_allocation": {"amount": 10, "unit": "undefined", "normalized": False},
             },
         },
     ("basic", "3"): {
@@ -49,9 +48,9 @@ DATA = {
             "type": "product",
             "unit": "megajoule",
             "properties": {
-                "price": 12,
-                "mass": 4,
-                "manual_allocation": 8,
+                "price": {"amount": 5, "unit": "EUR"},
+                "mass": {"amount": 15, "unit": "kg"},
+                "manual_allocation": {"amount": 90, "unit": "undefined", "normalized": False},
             },
         },
 }
