@@ -482,7 +482,8 @@ class Product(MFActivity):
         excs = self.exchanges(kinds=["production"], reverse=True)
 
         if len(excs) > 1:
-            raise ValidityError("Invalid product has multiple processing edges")
+            log.warning(f"Multiple processing edges found for product {self}.")
+            return None
         if len(excs) == 0:
             return None
         return list(excs)[0]
@@ -585,7 +586,7 @@ class Product(MFActivity):
         else:
             _, errors = super().valid(why=True)
 
-        if not self.get("processor"):
+        if not self.get("processor") and self.processor is None:
             errors.append("Missing field ``processor``")
         elif not isinstance(self["processor"], tuple):
             errors.append("Field ``processor`` must be a tuple")
