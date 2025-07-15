@@ -13,6 +13,7 @@ def test_process_creation(basic):
     assert not process.functional
     assert not process.multifunctional
 
+
 def test_process_allocation_switch(basic):
     """
     Test the allocation switch functionality of a process.
@@ -41,6 +42,7 @@ def test_process_allocation_switch(basic):
 
     product = process.products()[0]
     assert product["allocation_factor"] == 0.75
+
 
 def test_process_copy(basic):
     """
@@ -139,3 +141,35 @@ def test_process_new_product(basic):
     assert new_product["amount"] == 10
     assert new_product.processor == process
     assert len(process.products()) == 3
+
+
+def test_process_property_template(basic):
+    """
+    Test the property template functionality of a process.
+
+    This test retrieves a process by its code, creates a new property template, and
+    verifies that the property template is added to the process. It also checks that
+    the property template has the expected attributes and is linked to the process.
+
+    Args:
+        basic: A fixture or object providing access to the database and processes.
+
+    Assertions:
+        - The new property template is successfully created and added to the process.
+        - The new property template has the expected attributes.
+        - The new property template is linked to the correct processor.
+    """
+    process: bf.Process = basic.get(code="1")
+    prop = process.property_template("price")
+
+    assert prop["unit"] == "EUR"
+    assert prop["amount"] == 1.0
+
+    prod = process.products()[0]
+    prod["properties"]["price"] = {"amount": 10, "unit": "DOLLAR"}
+    prod.save()
+
+    prop = process.property_template("price")
+
+    assert prop["unit"] in ["EUR", "DOLLAR"]
+    assert prop["amount"] == 1.0

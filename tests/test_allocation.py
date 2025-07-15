@@ -124,3 +124,9 @@ def test_equal_allocation(basic):
     assert bd.get_node(code="2")["allocation_factor"] == 0.5
     assert bd.get_node(code="3")["allocation_factor"] == 0.5
 
+
+def test_allocation_no_label(basic):
+    del basic.metadata["default_allocation"]
+    with pytest.raises(ValueError, match="Can't find `default_allocation` in input arguments, or process/database metadata."):
+        bd.get_node(code="1").allocate()
+
