@@ -412,8 +412,8 @@ class Product(MFActivity):
             self.processor.allocate()
 
         # Check if the substitution factor has changed and allocate if necessary
-        if not created and (old.data.get("substitution_factor", 0) > 0) != (self.get("substitution_factor", 0) > 0):
-            self.processor.allocate()
+        # if not created and (old.data.get("substitution_factor", 0) > 0) != (self.get("substitution_factor", 0) > 0):
+        #     self.processor.allocate()
 
         # If the product is new and there's no production exchange yet, create one
         if created and not edge:
@@ -433,16 +433,10 @@ class Product(MFActivity):
         edge = self.processing_edge
         if not edge:
             return "orphaned_product"
-        elif edge.amount >= 0:
-            return "product"
         elif edge.amount < 0:
             return "waste"
-
-        # If we reach here, it means the edge amount is invalid
-        raise ValidityError(
-            f"Invalid processing edge amount for {self.key}: {edge.amount}. "
-            "Amount must be positive for products and negative for wastes."
-        )
+        else:
+            return "product"
 
     def delete(self, signal: bool = True):
         """
@@ -468,7 +462,7 @@ class Product(MFActivity):
         excs = self.exchanges(kinds=["production"], reverse=True)
 
         if len(excs) > 1:
-            log.warning(f"Multiple processing edges found for product {self}.")
+            log.warning(f"Multiple processing edges found for product {self["code"]}.")
             return None
         if len(excs) == 0:
             return None
@@ -514,7 +508,7 @@ class Product(MFActivity):
             list[dict]: A list of dictionaries representing the virtual edges.
         """
         virtual_exchanges = []
-        for exchange in self._edges_class(self["processor"], ["technosphere", "biosphere"]):
+        for exchange in self._edges_class(self.processor.key, ["technosphere", "biosphere"]):
             ds = exchange.as_dict()
             ds["amount"] = ds["amount"] * self.get("allocation_factor", 1)
             ds["output"] = self.key
@@ -525,23 +519,23 @@ class Product(MFActivity):
 
         return virtual_exchanges
 
-    def substitute(self, substitute_key: tuple | None = None, substitution_factor=1.0):
-        """
-        Set or remove substitution for the product.
-
-        Args:
-            substitute_key (tuple, optional): The key of the substitute. Defaults to None.
-            substitution_factor (float, optional): The substitution factor. Defaults to 1.0.
-        """
-        if substitute_key is None:
-            if self.get("substitute"):
-                del self["substitute"]
-            if self.get("substitution_factor"):
-                del self["substitution_factor"]
-            return
-
-        self["substitute"] = substitute_key
-        self["substitution_factor"] = substitution_factor
+    # def substitute(self, substitute_key: tuple | None = None, substitution_factor=1.0):
+    #     """
+    #     Set or remove substitution for the product.
+    #
+    #     Args:
+    #         substitute_key (tuple, optional): The key of the substitute. Defaults to None.
+    #         substitution_factor (float, optional): The substitution factor. Defaults to 1.0.
+    #     """
+    #     if substitute_key is None:
+    #         if self.get("substitute"):
+    #             del self["substitute"]
+    #         if self.get("substitution_factor"):
+    #             del self["substitution_factor"]
+    #         return
+    #
+    #     self["substitute"] = substitute_key
+    #     self["substitution_factor"] = substitution_factor
 
     def new_edge(self, **kwargs):
         """
