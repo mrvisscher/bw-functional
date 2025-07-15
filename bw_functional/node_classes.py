@@ -2,6 +2,7 @@ from typing import Optional, Union
 from logging import getLogger
 
 from bw2data import databases, get_node, labels
+from bw2data.backends import ExchangeDataset
 from bw2data.errors import UnknownObject, ValidityError
 from bw2data.backends.proxies import Activity, ActivityDataset
 
@@ -162,19 +163,19 @@ class MFActivity(Activity):
         exc = super().new_edge(**kwargs)
         return self._edge_class(**exc)
 
-    def copy(self, *args, **kwargs):
-        """
-        Create a copy of the activity.
-
-        Args:
-            *args: Positional arguments for the copy operation.
-            **kwargs: Keyword arguments for the copy operation.
-
-        Returns:
-            MFActivity: A copy of the activity.
-        """
-        act = super().copy(*args, **kwargs)
-        return self.__class__(document=act._document)
+    # def copy(self, *args, **kwargs):
+    #     """
+    #     Create a copy of the activity.
+    #
+    #     Args:
+    #         *args: Positional arguments for the copy operation.
+    #         **kwargs: Keyword arguments for the copy operation.
+    #
+    #     Returns:
+    #         MFActivity: A copy of the activity.
+    #     """
+    #     act = super().copy(*args, **kwargs)
+    #     return self.__class__(document=act._document)
 
 
 class Process(MFActivity):
@@ -220,20 +221,18 @@ class Process(MFActivity):
             Process: A copy of the process.
         """
         act = super().copy(*args, **kwargs)
+        act.production().delete()  # Delete the production exchanges to avoid duplicates
 
         for product in self.products():
-            input_database, input_code = product.key
-            output_database, output_code = act.key
+            prod_copy = product.copy(processor=act.key)
 
-            MFExchange.ORMDataset.get(
-                input_database=input_database, input_code=input_code, output_database=output_database,
-                output_code=output_code, type="production").delete_instance()
+            edge_data = product.processing_edge.as_dict()
+            edge_data["input"] = prod_copy.key
+            edge_data.pop("output", None)
 
-            copied_fn = product.copy(processor=act.key, signal=False)
-            copied_fn.create_processing_edge()
-            copied_fn.save()
+            act.new_edge(**edge_data).save()
 
-        return act
+        return self.__class__(document=act._document)
 
     def deduct_type(self) -> str:
         """
@@ -488,11 +487,12 @@ class Product(MFActivity):
             return None
         return list(excs)[0]
 
-    def create_processing_edge(self):
+    def create_processing_edge(self, amount: float = None):
         """
         Create a new processing edge for the product.
         """
-        amount = 1.0 if self["type"] == "product" else -1.0
+        if amount is None:
+            amount = 1.0 if self["type"] == "product" else -1.0
         MFExchange(input=self.key, output=self["processor"], amount=amount, type="production").save()
 
     @property
@@ -585,7 +585,7 @@ class Product(MFActivity):
         else:
             _, errors = super().valid(why=True)
 
-        if not self.get("processor") and not self.processor:
+        if not self.get("processor"):
             errors.append("Missing field ``processor``")
         elif not isinstance(self["processor"], tuple):
             errors.append("Field ``processor`` must be a tuple")
