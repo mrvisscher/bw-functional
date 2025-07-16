@@ -1,6 +1,6 @@
 package:
   name: bw_functional
-  version: "{{ os.environ.get('VERSION', 'dev') }}"
+  version: "{{ os.environ.get('BW_FUNCTIONAL_VERSION', 'dev') }}"
 
 source:
   path: ..

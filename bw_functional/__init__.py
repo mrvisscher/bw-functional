@@ -9,8 +9,8 @@ __all__ = (
     "FunctionalSQLiteDatabase",
     "property_allocation",
 )
-
-__version__ = "0.1"
+import os, importlib.metadata
+__version__ = os.environ.get("BW_FUNCTIONAL_VERSION", importlib.metadata.version("bw_functional"))
 
 from logging import getLogger
 
