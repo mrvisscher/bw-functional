@@ -62,14 +62,6 @@ dev = [
     "setuptools",
 ]
 
-[tool.setuptools]
-license-files = ["LICENSE"]
-include-package-data = true
-packages = ["bw_functional"]
-
-[tool.setuptools.dynamic]
-version = {attr = "bw_functional.__version__"}
-
 [tool.pytest.ini_options]
 addopts = "--cov bw_functional --cov-report term-missing --verbose"
 norecursedirs = [
