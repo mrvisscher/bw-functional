@@ -10,7 +10,7 @@ __all__ = (
     "property_allocation",
 )
 import os, importlib.metadata
-__version__ = os.environ.get("BW_FUNCTIONAL_VERSION", importlib.metadata.version("bw_functional"))
+__version__ = os.environ.get("BW_FUNCTIONAL_VERSION") or importlib.metadata.version(__package__ or __name__)
 
 from logging import getLogger
 
