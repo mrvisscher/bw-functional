@@ -21,7 +21,7 @@ jobs:
       with:
         fetch-depth: "0"
     - name: Set version
-      run: echo "VERSION=0.b.$(git rev-list 0.0.0..HEAD --count)" >> $GITHUB_ENV
+      run: echo "VERSION=0.b.$(git rev-list 785f296..HEAD --count)" >> $GITHUB_ENV
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
