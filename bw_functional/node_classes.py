@@ -462,7 +462,7 @@ class Product(MFActivity):
         excs = self.exchanges(kinds=["production"], reverse=True)
 
         if len(excs) > 1:
-            log.warning(f"Multiple processing edges found for product {self["code"]}.")
+            log.warning(f"Multiple processing edges found for product {self['code']}.")
             return None
         if len(excs) == 0:
             return None
