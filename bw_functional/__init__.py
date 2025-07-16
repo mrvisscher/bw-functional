@@ -9,8 +9,8 @@ __all__ = (
     "FunctionalSQLiteDatabase",
     "property_allocation",
 )
-import os
-__version__ = os.environ.get("BW_FUNCTIONAL_VERSION") or "0.0.1"
+# import os
+__version__ = "0.0.2"
 
 from logging import getLogger
 
