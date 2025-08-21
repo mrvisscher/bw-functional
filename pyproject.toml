@@ -33,7 +33,6 @@ dependencies = [
     "bw2data>=4.0.1",
     "bw2io>=0.9.1",
     "bw_processing>=0.9.6",
-    "numpy<2",
 ]
 
 [project.urls]
