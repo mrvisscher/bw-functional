@@ -257,7 +257,7 @@ class Process(MFActivity):
         Returns:
             set[str]: A list of property names available in the process.
         """
-        properties = [prod["properties"] for prod in self.products()]
+        properties = [prod.get("properties", {}) for prod in self.products()]
         property_names = [set(prop.keys()) for prop in properties]
         common_properties = set.intersection(*property_names) if property_names else set()
 
