@@ -101,7 +101,7 @@ def get_property_value(
 
     props = product.get("properties")
 
-    if not props:
+    if not props or not isinstance(props, dict):
         raise KeyError(f"Product {product} from process {product.processor} doesn't have properties")
 
     prop = props.get(property_label)
