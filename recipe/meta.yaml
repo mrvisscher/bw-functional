@@ -9,6 +9,8 @@ build:
   noarch: python
   number: 0
   script: "{{ PYTHON }} -m pip install . -vv"
+  script_env:
+    - BW_FUNCTIONAL_VERSION
 
 requirements:
   host:
