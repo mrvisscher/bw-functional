@@ -8,6 +8,8 @@ __all__ = (
     "MFExchanges",
     "FunctionalSQLiteDatabase",
     "property_allocation",
+    "convert_sqlite_to_functional_sqlite",
+    "convert_functional_sqlite_to_sqlite"
 )
 # import os
 __version__ = "0.0.2"
@@ -21,6 +23,7 @@ from .allocation import allocation_strategies, generic_allocation, property_allo
 from .database import FunctionalSQLiteDatabase
 from .node_classes import Process, Product
 from .edge_classes import MFExchange, MFExchanges
+from .convert import convert_sqlite_to_functional_sqlite, convert_functional_sqlite_to_sqlite
 
 log = getLogger(__name__)
 

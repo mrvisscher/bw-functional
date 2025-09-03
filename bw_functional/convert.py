@@ -9,21 +9,16 @@ from .database import FunctionalSQLiteDatabase
 log = getLogger(__name__)
 
 
-def convert_sqlite_to_functional_sqlite(database_name: str) -> dict:
-    return SQLiteToFunctionalSQLite.convert(database_name)
+def convert_sqlite_to_functional_sqlite(database_dict: dict) -> dict:
+    return SQLiteToFunctionalSQLite.convert(database_dict)
 
 
 class SQLiteToFunctionalSQLite:
     @classmethod
-    def convert(cls, database_name: str):
-        db = bd.Database(database_name)
-
-        if not isinstance(db, SQLiteBackend):
-            raise TypeError("Database is not of type SQLite.")
-
+    def convert(cls, database_dict: dict):
         converted = {}
 
-        for key, ds in tqdm.tqdm(db.load().items()):
+        for key, ds in tqdm.tqdm(database_dict.items()):
             if ds["type"] in ["process", "processwithreferenceproduct"]:
                 converted.update(cls.convert_process(key, ds))
 
@@ -87,24 +82,18 @@ class SQLiteToFunctionalSQLite:
             exc["input"] = (database, exc["input"][1] + "_function")
 
 
-def convert_functional_sqlite_to_sqlite(database_name: str):
-    return FunctionalSQLiteToSQLite.convert(database_name)
+def convert_functional_sqlite_to_sqlite(database_dict: dict):
+    return FunctionalSQLiteToSQLite.convert(database_dict)
 
 
 class FunctionalSQLiteToSQLite:
     @classmethod
-    def convert(cls, database_name: str):
-        db = bd.Database(database_name)
-
-        if not isinstance(db, FunctionalSQLiteDatabase):
-            raise TypeError("Database is not of type functional_sqlite.")
-
-        raw = db.load()
+    def convert(cls, database_dict: dict):
         converted = {}
 
-        for key, ds in tqdm.tqdm(raw.items()):
+        for key, ds in tqdm.tqdm(database_dict.items()):
             if ds["type"] in ["product", "waste"]:
-                processor = raw[ds["processor"]]
+                processor = database_dict[ds["processor"]]
                 converted[key] = cls.convert_function(key, ds, processor)
 
         return converted
