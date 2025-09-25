@@ -172,10 +172,10 @@ def test_product_virtual_edges(basic):
     product = basic.get(code="2")
     edges = product.virtual_edges
 
-    assert len(edges) == 1
-    assert edges[0]["input"] == ('basic', 'a')
-    assert edges[0]["output"] == product.key
-    assert edges[0]["amount"] == 5
+    assert len(edges) == 2
+    assert edges[1]["input"] == ('basic', 'a')
+    assert edges[1]["output"] == product.key
+    assert edges[1]["amount"] == 5
 
 
 def test_product_new_edge(basic):
