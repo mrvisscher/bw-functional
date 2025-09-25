@@ -37,10 +37,6 @@ def generic_allocation(
     if not isinstance(process, Process):
         raise ValueError("Activity must be a Process instance")
 
-    # Return none if the process is not multifunctional
-    if not process.multifunctional:
-        return
-
     # Collect products eligible for allocation (functions that are not subsituted)
     products = []
     for product in process.products():
