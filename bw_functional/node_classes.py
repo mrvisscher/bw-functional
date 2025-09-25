@@ -333,7 +333,7 @@ class Process(MFActivity):
         Raises:
             ValueError: If no allocation strategy is found.
         """
-        if self.get("skip_allocation") or not self.multifunctional:
+        if self.get("skip_allocation"):
             log.debug(f"Skipping allocation for {repr(self)} (id: {self.id})")
             return
 
@@ -508,14 +508,16 @@ class Product(MFActivity):
             list[dict]: A list of dictionaries representing the virtual edges.
         """
         virtual_exchanges = []
+
+        production = self.processing_edge.as_dict()
+        production["output"] = self.key
+        virtual_exchanges.append(production)
+
         for exchange in self._edges_class(self.processor.key, ["technosphere", "biosphere"]):
             ds = exchange.as_dict()
             ds["amount"] = ds["amount"] * self.get("allocation_factor", 1)
             ds["output"] = self.key
             virtual_exchanges.append(ds)
-
-        production = self.processing_edge.as_dict()
-        production["output"] = self.key
 
         return virtual_exchanges
 
