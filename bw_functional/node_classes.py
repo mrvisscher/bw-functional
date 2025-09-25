@@ -209,8 +209,9 @@ class Process(MFActivity):
         act = super().copy(*args, **kwargs)
         act.production().delete()  # Delete the production exchanges to avoid duplicates
 
+        database = kwargs.get("database", self["database"])
         for product in self.products():
-            prod_copy = product.copy(processor=act.key)
+            prod_copy = product.copy(processor=act.key, database=database)
 
             edge_data = product.processing_edge.as_dict()
             edge_data["input"] = prod_copy.key
