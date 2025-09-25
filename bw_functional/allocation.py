@@ -48,6 +48,10 @@ def generic_allocation(
             # Include functions with non-positive substitution factor
             products.append(product)
 
+    if not products:
+        log.warning(f"No products to allocate in process {process}")
+        return
+
     # Calculate the total value for allocation
     total = sum([getter(product) for product in products])
 
