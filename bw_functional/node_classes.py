@@ -11,6 +11,13 @@ from .edge_classes import MFExchanges, MFExchange
 log = getLogger(__name__)
 
 
+INHERITED_FIELDS = [
+    "database",
+    "location",
+    "name",
+]
+
+
 class MFActivity(Activity):
     """
     A class representing an activity of the functional_sqlite backend.
@@ -192,8 +199,18 @@ class Process(MFActivity):
 
         super().save(signal, data_already_set, force_insert)
 
-        if not created and old.data.get("allocation") != self.get("allocation"):
+        if created:
+            return
+
+        if old.data.get("allocation") != self.get("allocation"):
             self.allocate()
+
+        if changed_fields := [field for field in INHERITED_FIELDS if self.get(field) != old.data.get(field)]:
+            log.info(f"Updating inherited fields {changed_fields} for products of process {self}")
+            for product in self.products():
+                for field in changed_fields:
+                    product._set_inherited(field, self.get(field))
+                product.save()
 
     def copy(self, *args, **kwargs):
         """
@@ -245,9 +262,16 @@ class Process(MFActivity):
         Returns:
             Product: A new product.
         """
+        if kwargs.get("reference product") is None:
+
+            kwargs["reference product"] = kwargs.get("product", kwargs.get("name", f"Unnamed {type}"))
+
         kwargs["type"] = type
         kwargs["processor"] = self.key
-        kwargs["database"] = self["database"]
+
+        for field in INHERITED_FIELDS:
+            kwargs[field] = self.get(field)
+
         kwargs["properties"] = {p: self.property_template(p) for p in self.available_properties()}
         return Product(**kwargs)
 
@@ -288,7 +312,7 @@ class Process(MFActivity):
             "normalize": normalize.pop() if normalize else True
         }
 
-    def products(self):
+    def products(self) -> list["Product"]:
         """
         Retrieve the products (products or wastes) associated with the process.
 
@@ -367,6 +391,18 @@ class Product(MFActivity):
     products, including saving, deleting, and validating them, as well as handling
     processing edges and substitution.
     """
+    def __setitem__(self, key, value):
+        if key in INHERITED_FIELDS:
+            raise KeyError(f"Field '{key}' is inherited from the processor and cannot be set directly.")
+        if key in ["product", "reference product"]:
+            # explicit synonyms
+            super().__setitem__("product", value)
+            super().__setitem__("reference product", value)
+            return
+        super().__setitem__(key, value)
+
+    def _set_inherited(self, key, value):
+        super().__setitem__(key, value)
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         """

@@ -1,5 +1,4 @@
 __all__ = (
-    "__version__",
     "allocation_strategies",
     "generic_allocation",
     "Process",
@@ -9,11 +8,12 @@ __all__ = (
     "FunctionalSQLiteDatabase",
     "property_allocation",
     "convert_sqlite_to_functional_sqlite",
-    "convert_functional_sqlite_to_sqlite"
+    "convert_functional_sqlite_to_sqlite",
+    "update",
 )
-# import os
-__version__ = "0.0.2"
 
+from importlib import metadata
+# import os
 from logging import getLogger
 
 from bw2data import labels
@@ -24,6 +24,7 @@ from .database import FunctionalSQLiteDatabase
 from .node_classes import Process, Product
 from .edge_classes import MFExchange, MFExchanges
 from .convert import convert_sqlite_to_functional_sqlite, convert_functional_sqlite_to_sqlite
+from .update import update, latest
 
 log = getLogger(__name__)
 
@@ -38,9 +39,10 @@ if "nonfunctional" not in labels.node_types:
 
 # make sure allocation happens on parameter changes
 def _init_signals():
-    from bw2data.signals import on_activity_parameter_recalculate
+    from bw2data.signals import on_activity_parameter_recalculate, project_changed
 
     on_activity_parameter_recalculate.connect(_check_parameterized_exchange_for_allocation)
+    project_changed.connect(_check_and_update)
 
 def _check_parameterized_exchange_for_allocation(_, name):
     import bw2data as bd
@@ -64,5 +66,19 @@ def _check_parameterized_exchange_for_allocation(_, name):
             log.warning(f"Process {key} is not an instance of Process, skipping allocation check.")
             continue
         process.allocate()
+
+def _check_and_update(dataset):
+    if dataset.data is None:
+        dataset.data = {}
+        dataset.save()
+
+    current = dataset.data.get("bw_functional_version")
+
+    if current != latest:
+        log.info(f"Updating {dataset.name} to latest bw_functional datastructure version {latest}")
+        dataset.data["bw_functional_version"] = update(current)
+        dataset.save()
+
+    return
 
 _init_signals()
