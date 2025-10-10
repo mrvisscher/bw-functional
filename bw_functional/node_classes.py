@@ -266,6 +266,7 @@ class Process(MFActivity):
 
             kwargs["reference product"] = kwargs.get("product", kwargs.get("name", f"Unnamed {type}"))
 
+        kwargs["product"] = kwargs["reference product"]
         kwargs["type"] = type
         kwargs["processor"] = self.key
 
