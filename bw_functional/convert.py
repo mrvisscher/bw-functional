@@ -25,7 +25,7 @@ class SQLiteToFunctionalSQLite:
         return converted
 
     @classmethod
-    def convert_process(cls, key, ds):
+    def convert_process(cls, key, ds, convert_exchanges=True):
         ds["type"] = "process"
         production = [x for x in enumerate(ds["exchanges"]) if x[1]["type"] == "production"]
         if len(production) > 1:
@@ -34,7 +34,8 @@ class SQLiteToFunctionalSQLite:
             act = bd.get_activity(key)
             raise ValueError("Cannot convert a process with multiple production exchanges to functional_sqlite.", act)
 
-        cls.convert_exchanges(key, ds)
+        if convert_exchanges:
+            cls.convert_exchanges(key, ds)
 
         if not production:
             function_key, function = cls.create_function(key, ds)
@@ -53,7 +54,9 @@ class SQLiteToFunctionalSQLite:
 
         function = {
             "type": "product" if amount > 0 else "waste",
-            "name": function_name,
+            "name": ds.get("name"),
+            "reference product": function_name,
+            "product": function_name,
             "exchanges": [],
             "database": ds["database"],
             "code": function_code,
@@ -80,6 +83,28 @@ class SQLiteToFunctionalSQLite:
             if exc["input"][0] != database:
                 continue
             exc["input"] = (database, exc["input"][1] + "_function")
+
+    @classmethod
+    def duplicate_node(cls, node: bd.Node, target_database_name: str) -> list[bd.Node]:
+        database = FunctionalSQLiteDatabase(node.get("database"))
+        database_dict = database.as_dict()
+
+        converted_dict = cls.convert_process(node.key, node.as_dict())
+        converted_dict = database.relabel_data(converted_dict, node.get("database"), node.get("database"))
+
+        new_nodes = []
+        for key, ds in converted_dict.items():
+            if "id" in ds:
+                del ds["id"]
+
+            ds["key"] = key
+            ds["database"] = node.get("database")
+
+            new_node = bd.Node(**ds)
+            new_node.save()
+            new_nodes.append(new_node)
+
+        return new_nodes
 
 
 def convert_functional_sqlite_to_sqlite(database_dict: dict):
