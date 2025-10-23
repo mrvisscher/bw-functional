@@ -135,7 +135,8 @@ def test_process_new_product(basic):
     new_product.save()
 
     assert isinstance(new_product, bf.Product)
-    assert new_product["name"] == "new_product"
+    assert new_product["name"] == "process - 1"
+    assert new_product["product"] == "new_product"
     assert new_product["code"] == "new_product_code"
     assert new_product["unit"] == "kg"
     assert new_product["amount"] == 10
