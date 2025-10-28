@@ -44,6 +44,10 @@ class SQLiteToFunctionalSQLite:
             function_key, function = cls.create_function(key, ds, amount=exchange["amount"])
             ds["exchanges"].pop(index)
 
+        ds.pop("reference product", None)
+        ds.pop("product", None)
+        ds.pop("unit", None)
+
         return {key: ds, function_key: function}
 
     @staticmethod
