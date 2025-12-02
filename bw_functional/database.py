@@ -266,7 +266,8 @@ class Build:
         """
         consumption = Build.consumption(nodes, exchanges)
         production = Build.production(nodes, exchanges)
-        return pd.concat([consumption, production])
+        substitution = Build.substitution(nodes, exchanges)
+        return pd.concat([consumption, production, substitution])
 
     @staticmethod
     def biosphere(nodes, exchanges):
@@ -298,6 +299,22 @@ class Build:
         """
         x = Build.allocated(nodes, exchanges, ["technosphere"])
         x["flip"] = True
+        return x[["row", "col", "amount", "flip"] + UNCERTAINTY_FIELDS]
+
+    @staticmethod
+    def substitution(nodes, exchanges):
+        """
+        Constructs the consumption flows by allocating technosphere exchanges.
+
+        Args:
+            nodes (pd.DataFrame): The dataframe containing node data.
+            exchanges (pd.DataFrame): The dataframe containing exchange data.
+
+        Returns:
+            pd.DataFrame: A dataframe containing allocated consumption flows with additional metadata.
+        """
+        x = Build.allocated(nodes, exchanges, ["substitution"])
+        x["flip"] = False
         return x[["row", "col", "amount", "flip"] + UNCERTAINTY_FIELDS]
 
     @staticmethod
@@ -389,7 +406,7 @@ class Mutate:
         # Distributions that use the standard method
         standard = [sa.NormalUncertainty.id, sa.UniformUncertainty.id, sa.TriangularUncertainty.id,
                     sa.WeibullUncertainty.id, sa.GammaUncertainty.id, sa.GeneralizedExtremeValueUncertainty.id,
-                    sa.UndefinedUncertainty, sa.NoUncertainty]
+                    sa.UndefinedUncertainty.id, sa.NoUncertainty.id]
         # Lognormal uncertainty
         ln = [sa.LognormalUncertainty.id]
 
