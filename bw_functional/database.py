@@ -1,13 +1,13 @@
 import sqlite3
 import pickle
 import datetime
-from logging import getLogger
 from time import time
+
+from loguru import logger
+from fsspec.implementations.zip import ZipFileSystem
 
 import numpy as np
 import pandas as pd
-from fsspec.implementations.zip import ZipFileSystem
-
 import stats_arrays as sa
 
 from bw_processing import clean_datapackage_name, create_datapackage
@@ -16,8 +16,6 @@ from bw2data.backends.schema import ActivityDataset
 from pandas._libs.missing import NAType
 
 from .node_classes import Process, Product
-
-log = getLogger(__name__)
 
 UNCERTAINTY_FIELDS = ["uncertainty_type", "loc", "scale", "shape", "minimum", "maximum"]
 
@@ -238,7 +236,7 @@ class FunctionalSQLiteDatabase(SQLiteBackend):
         # Close the SQLite connection
         con.close()
 
-        log.debug(f"Processing: built tables from SQL in {time() - t:.2f} seconds")
+        logger.debug(f"Processing: built tables from SQL in {time() - t:.2f} seconds")
 
         return node_df, exc_df, dependents
 

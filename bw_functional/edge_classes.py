@@ -1,10 +1,8 @@
-from logging import getLogger
+from loguru import logger
 from copy import deepcopy
 
 from bw2data import projects, databases, errors
 from bw2data.backends.proxies import Exchange, Exchanges, ExchangeDataset
-
-log = getLogger(__name__)
 
 
 class MFExchanges(Exchanges):
@@ -106,7 +104,7 @@ class MFExchange(Exchange):
             NotImplementedError: If parameterization is attempted for production exchanges.
         """
         from .node_classes import Process, Product
-        log.debug(f"Saving {self['type']} Exchange: {self}")
+        logger.debug(f"Saving {self['type']} Exchange: {self}")
 
         created = self.id is None  # the exchange is new if it has no id
         old = ExchangeDataset.get_by_id(self.id) if not created else None
@@ -150,11 +148,11 @@ class MFExchange(Exchange):
             function = self.input
             process = self.output
         except errors.UnknownObject:
-            log.warning(f"Could not retrieve input or output for exchange deletion. {self['input']=}, {self['output']=}")
+            logger.warning(f"Could not retrieve input or output for exchange deletion. {self['input']=}, {self['output']=}")
             super().delete(signal)
             return
 
-        log.debug(f"Deleting {self['type']} Exchange: {self}")
+        logger.debug(f"Deleting {self['type']} Exchange: {self}")
 
         super().delete(signal)
 

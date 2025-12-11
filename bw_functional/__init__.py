@@ -12,9 +12,7 @@ __all__ = (
     "update",
 )
 
-from importlib import metadata
-# import os
-from logging import getLogger
+from loguru import logger
 
 from bw2data import labels
 from bw2data.subclass_mapping import DATABASE_BACKEND_MAPPING, NODE_PROCESS_CLASS_MAPPING
@@ -25,8 +23,6 @@ from .node_classes import Process, Product
 from .edge_classes import MFExchange, MFExchanges
 from .convert import convert_sqlite_to_functional_sqlite, convert_functional_sqlite_to_sqlite
 from .update import update, latest
-
-log = getLogger(__name__)
 
 DATABASE_BACKEND_MAPPING["functional_sqlite"] = FunctionalSQLiteDatabase
 NODE_PROCESS_CLASS_MAPPING["functional_sqlite"] = FunctionalSQLiteDatabase.node_class
@@ -63,7 +59,7 @@ def _check_parameterized_exchange_for_allocation(_, name):
     for key in process_keys:
         process = bd.get_activity(key)
         if not isinstance(process, Process):
-            log.warning(f"Process {key} is not an instance of Process, skipping allocation check.")
+            logger.warning(f"Process {key} is not an instance of Process, skipping allocation check.")
             continue
         process.allocate()
 
@@ -75,7 +71,7 @@ def _check_and_update(dataset):
     current = dataset.data.get("bw_functional_version")
 
     if current != latest:
-        log.info(f"Updating {dataset.name} to latest bw_functional datastructure version {latest}")
+        logger.info(f"Updating {dataset.name} to latest bw_functional datastructure version {latest}")
         dataset.data["bw_functional_version"] = update(current)
         dataset.save()
 

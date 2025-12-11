@@ -1,10 +1,8 @@
 from functools import partial
-from typing import Callable, List
-from logging import getLogger
+from typing import Callable
+from loguru import logger
 
 from .node_classes import Process, Product
-
-log = getLogger(__name__)
 
 
 def generic_allocation(
@@ -49,7 +47,7 @@ def generic_allocation(
             products.append(product)
 
     if not products:
-        log.warning(f"No products to allocate in process {process}")
+        logger.warning(f"No products to allocate in process {process}")
         return
 
     # Calculate the total value for allocation
@@ -110,7 +108,7 @@ def get_property_value(
         raise KeyError(f"Product {product} from {product.processor} missing property {property_label}")
 
     if isinstance(prop, float):
-        log.warning("Property using legacy float format")
+        logger.warning("Property using legacy float format")
         return prop
 
     if prop.get("normalize", False):

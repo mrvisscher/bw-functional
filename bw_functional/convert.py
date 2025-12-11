@@ -1,12 +1,8 @@
 import tqdm
-from logging import getLogger
-
+from loguru import logger
 import bw2data as bd
-from bw2data.backends import SQLiteBackend
 
 from .database import FunctionalSQLiteDatabase
-
-log = getLogger(__name__)
 
 
 def convert_sqlite_to_functional_sqlite(database_dict: dict) -> dict:
@@ -145,15 +141,15 @@ class FunctionalSQLiteToSQLite:
                 continue
 
             if exc["type"] != "production" and ds.get("allocation_factor"):
-                log.info(f"Allocating exchange from {exc['input']} to {ds['name']} "
+                logger.info(f"Allocating exchange from {exc['input']} to {ds['name']} "
                          f"with factor {ds['allocation_factor']}")
                 exc["amount"] = exc["amount"] * ds['allocation_factor']
                 if exc.get("formula"):
-                    log.info(f"Allocating formula from {exc['input']} to {ds['name']}: "
+                    logger.info(f"Allocating formula from {exc['input']} to {ds['name']}: "
                              f"{exc['formula']} * {ds['allocation_factor']}")
                     exc["formula"] = f"{exc['formula']} * {ds['allocation_factor']}"
                 if exc.get("uncertainty type"):
-                    log.warning(f"Exchange from {exc['input']} to {ds['name']} has an uncertainty distribution that "
+                    logger.warning(f"Exchange from {exc['input']} to {ds['name']} has an uncertainty distribution that "
                                 f"will not be allocated")
 
             ds["exchanges"].append(exc)

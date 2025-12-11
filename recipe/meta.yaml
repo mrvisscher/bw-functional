@@ -21,6 +21,8 @@ requirements:
   run:
     - python >=3.10
     - blinker
+    - loguru
+    - pandas
     - bw2data >=4.0.1
     - bw2io >=0.9.1
     - bw_processing >=0.9.6

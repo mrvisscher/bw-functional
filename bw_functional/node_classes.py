@@ -1,14 +1,12 @@
-from typing import Optional, Union
-from logging import getLogger
+from typing import Optional
+
+from loguru import logger
 
 from bw2data import databases, get_node, labels
-from bw2data.backends import ExchangeDataset
 from bw2data.errors import UnknownObject, ValidityError
 from bw2data.backends.proxies import Activity, ActivityDataset
 
 from .edge_classes import MFExchanges, MFExchange
-
-log = getLogger(__name__)
 
 
 INHERITED_FIELDS = [
@@ -41,7 +39,7 @@ class MFActivity(Activity):
             data_already_set (bool, optional): Whether the data is already set. Defaults to False.
             force_insert (bool, optional): Whether to force an insert operation. Defaults to False.
         """
-        log.debug(f"Saving {self.__class__.__name__}: {self}")
+        logger.debug(f"Saving {self.__class__.__name__}: {self}")
         super().save(signal, data_already_set, force_insert)
 
     def delete(self, signal: bool = True):
@@ -53,7 +51,7 @@ class MFActivity(Activity):
         Args:
             signal (bool, optional): Whether to send a signal after deletion. Defaults to True.
         """
-        log.debug(f"Deleting {self.__class__.__name__}: {self}")
+        logger.debug(f"Deleting {self.__class__.__name__}: {self}")
         super().delete(signal)
 
     @property
@@ -206,7 +204,7 @@ class Process(MFActivity):
             self.allocate()
 
         if changed_fields := [field for field in INHERITED_FIELDS if self.get(field) != old.data.get(field)]:
-            log.info(f"Updating inherited fields {changed_fields} for products of process {self}")
+            logger.info(f"Updating inherited fields {changed_fields} for products of process {self}")
             for product in self.products():
                 for field in changed_fields:
                     product._set_inherited(field, self.get(field))
@@ -305,7 +303,7 @@ class Process(MFActivity):
         normalize = set(prop.get("normalize", True) for prop in properties)
 
         if len(units) > 1 or len(normalize) > 1:
-            log.warning(f"Property {name} has inconsistent units or normalization across products.")
+            logger.warning(f"Property {name} has inconsistent units or normalization across products.")
 
         return {
             "unit": units.pop() if units else "unitless",
@@ -360,7 +358,7 @@ class Process(MFActivity):
             ValueError: If no allocation strategy is found.
         """
         if self.get("skip_allocation"):
-            log.debug(f"Skipping allocation for {repr(self)} (id: {self.id})")
+            logger.debug(f"Skipping allocation for {repr(self)} (id: {self.id})")
             return
 
         from . import allocation_strategies, property_allocation
@@ -376,7 +374,7 @@ class Process(MFActivity):
                 "Can't find `default_allocation` in input arguments, or process/database metadata."
             )
 
-        log.debug(f"Allocating {repr(self)} (id: {self.id}) with strategy {strategy_label}")
+        logger.debug(f"Allocating {repr(self)} (id: {self.id}) with strategy {strategy_label}")
 
         alloc_function = allocation_strategies.get(strategy_label, property_allocation(strategy_label))
         alloc_function(self)
@@ -439,7 +437,7 @@ class Product(MFActivity):
 
         # Check if the `processor` is the same as the one in the production edge otherwise update it
         if not created and edge.output != self["processor"]:
-            log.info(f"Switching processor for {self}")
+            logger.info(f"Switching processor for {self}")
             edge.output = self["processor"]
             edge.save()
 
@@ -500,7 +498,7 @@ class Product(MFActivity):
         excs = self.exchanges(kinds=["production"], reverse=True)
 
         if len(excs) > 1:
-            log.warning(f"Multiple processing edges found for product {self['code']}.")
+            logger.warning(f"Multiple processing edges found for product {self['code']}.")
             return None
         if len(excs) == 0:
             return None
