@@ -1,7 +1,7 @@
 from logging import getLogger
 from copy import deepcopy
 
-from bw2data import projects, databases
+from bw2data import projects, databases, errors
 from bw2data.backends.proxies import Exchange, Exchanges, ExchangeDataset
 
 log = getLogger(__name__)
@@ -145,12 +145,18 @@ class MFExchange(Exchange):
             signal (bool, optional): Whether to send a signal after deletion. Defaults to True.
         """
         from .node_classes import Product, Process, MFActivity
+
+        try:
+            function = self.input
+            process = self.output
+        except errors.UnknownObject:
+            log.warning(f"Could not retrieve input or output for exchange deletion. {self['input']=}, {self['output']=}")
+            super().delete(signal)
+            return
+
         log.debug(f"Deleting {self['type']} Exchange: {self}")
 
         super().delete(signal)
-
-        function = self.input
-        process = self.output
 
         if not isinstance(process, Process) or not isinstance(function, Product):
             return
